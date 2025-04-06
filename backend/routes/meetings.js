@@ -5,7 +5,8 @@ const {
     getMeetingById, 
     updateMeetingStatus, 
     addMeetingTasks, 
-    updateTaskStatus 
+    updateTaskStatus,
+    getDepartmentMeetings
 } = require('../controllers/meetingController');
 const { protect, authorize } = require('../middleware/auth');
 
@@ -21,6 +22,9 @@ router.route('/')
 
 router.route('/:id')
     .get(getMeetingById);
+
+// HOD only routes
+router.get('/department', authorize('hod'), getDepartmentMeetings);
 
 // Faculty only routes
 router.put('/:id/status', authorize('faculty'), updateMeetingStatus);

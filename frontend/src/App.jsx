@@ -21,6 +21,7 @@ const HodProposals = lazy(() => import('./pages/hod/Proposals'));
 const HodGuides = lazy(() => import('./pages/hod/Guides'));
 const HodMeetings = lazy(() => import('./pages/hod/Meetings'));
 const HodProfile = lazy(() => import('./pages/hod/Profile'));
+const HodFaculty = lazy(() => import('./pages/hod/Faculty'));
 
 // Error boundary component
 class ErrorBoundary extends React.Component {
@@ -163,6 +164,16 @@ function App() {
               <ProtectedRoute allowedRoles={['hod']}>
                 <Suspense fallback={<div className="p-4 flex justify-center"><div className="w-8 h-8 border-t-2 border-b-2 border-indigo-500 rounded-full animate-spin"></div></div>}>
                   <HodProfile />
+                </Suspense>
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="hod/faculty" 
+            element={
+              <ProtectedRoute allowedRoles={['hod']}>
+                <Suspense fallback={<div className="p-4 flex justify-center"><div className="w-8 h-8 border-t-2 border-b-2 border-indigo-500 rounded-full animate-spin"></div></div>}>
+                  <HodFaculty />
                 </Suspense>
               </ProtectedRoute>
             } 

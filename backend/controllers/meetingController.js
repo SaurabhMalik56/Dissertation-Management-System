@@ -250,4 +250,54 @@ exports.updateTaskStatus = async (req, res) => {
         console.error(error);
         res.status(500).json({ message: 'Server error', error: error.message });
     }
+};
+
+// @desc    Get meetings for a department (HOD view)
+// @route   GET /api/meetings/department
+// @access  Private/HOD
+exports.getDepartmentMeetings = async (req, res) => {
+    try {
+        // Only HODs can access this route
+        if (req.user.role !== 'hod') {
+            return res.status(403).json({ 
+                message: 'Not authorized to access department meetings' 
+            });
+        }
+
+        const hodDepartment = req.user.department || req.user.branch;
+        
+        if (!hodDepartment) {
+            return res.status(400).json({ 
+                message: 'Department information missing from your profile' 
+            });
+        }
+
+        // Find faculty in the HOD's department
+        const facultyInDepartment = await User.find({ 
+            role: 'faculty',
+            $or: [
+                { department: hodDepartment },
+                { branch: hodDepartment }
+            ]
+        }).select('_id');
+
+        const facultyIds = facultyInDepartment.map(faculty => faculty._id);
+
+        // Get meetings where the guide is from the HOD's department
+        const meetings = await Meeting.find({ 
+            guide: { $in: facultyIds }
+        })
+        .populate('student', 'fullName email')
+        .populate('guide', 'fullName email')
+        .populate('project', 'title')
+        .sort({ scheduledDate: -1 });
+
+        res.json(meetings);
+    } catch (error) {
+        console.error('Error fetching department meetings:', error);
+        res.status(500).json({ 
+            message: 'Server error', 
+            error: error.message 
+        });
+    }
 }; 
