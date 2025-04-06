@@ -23,6 +23,9 @@ exports.protect = async (req, res, next) => {
                 return res.status(401).json({ message: 'Not authorized, user not found' });
             }
 
+            // Attach token to user object for easy access in controllers
+            req.user.token = token;
+
             next();
         } catch (error) {
             console.error(error);

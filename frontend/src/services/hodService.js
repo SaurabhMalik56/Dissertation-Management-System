@@ -195,11 +195,11 @@ const assignGuideToStudent = async (token, studentId, guideId) => {
 };
 
 // Update project status (approve/reject)
-const updateProjectStatus = async (token, projectId, status, comments) => {
+const updateProjectStatus = async (token, projectId, status, feedback) => {
   try {
     const response = await axios.patch(
       `${API_URL}/projects/${projectId}/status`,
-      { status, comments },
+      { status, feedback },
       createAuthHeader(token)
     );
     
@@ -334,6 +334,45 @@ const verifyAuthentication = async (token) => {
   }
 };
 
+// Get all meetings for department
+const getDepartmentMeetings = async (token) => {
+  try {
+    const response = await axios.get(
+      `${API_URL}/meetings/department`,
+      createAuthHeader(token)
+    );
+    
+    return response.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.message || 'Failed to fetch department meetings');
+  }
+};
+
+// Update HOD profile
+const updateProfile = async (token, profileData) => {
+  try {
+    const response = await axios.put(
+      `${API_URL}/users/profile`,
+      profileData,
+      createAuthHeader(token)
+    );
+    
+    // Merge the received data with the existing token
+    const updatedUser = {
+      ...response.data,
+      token: token // Keep the existing token if it's not returned by the server
+    };
+    
+    // Update localStorage
+    localStorage.setItem('user', JSON.stringify(updatedUser));
+    
+    return updatedUser;
+  } catch (error) {
+    console.error('Profile update error:', error.response?.data || error.message);
+    throw new Error(error.response?.data?.message || 'Failed to update profile');
+  }
+};
+
 const hodService = {
   getDepartmentProjects,
   getAllFaculty,
@@ -349,7 +388,9 @@ const hodService = {
   clearFacultyCache,
   clearProjectsCache,
   clearStudentsCache,
-  verifyAuthentication
+  verifyAuthentication,
+  getDepartmentMeetings,
+  updateProfile
 };
 
 export default hodService; 

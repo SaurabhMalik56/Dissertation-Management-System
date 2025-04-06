@@ -35,9 +35,10 @@ const Dashboard = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const location = useLocation();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [selectedProject, setSelectedProject] = useState(null);
   const [assigningGuide, setAssigningGuide] = useState(false);
+  const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState('');
 
   useEffect(() => {
     if (!user) return;
@@ -50,205 +51,418 @@ const Dashboard = () => {
     navigate('/login');
   };
 
-  const navigation = [
-    { name: 'Overview', href: '/hod/dashboard', icon: HomeIcon },
-    { name: 'Project Proposals', href: '/hod/proposals', icon: DocumentTextIcon },
-    { name: 'Assigned Guides', href: '/hod/guides', icon: UserGroupIcon },
-    { name: 'Meetings Overview', href: '/hod/meetings', icon: CalendarIcon },
-    { name: 'Profile', href: '/hod/profile', icon: UserIcon },
-  ];
+  const handleRejectProject = (projectId) => {
+    setSelectedProject(projects.find(p => p._id === projectId));
+    setRejectModalOpen(true);
+  };
+
+  const submitRejection = async () => {
+    if (!rejectionReason.trim()) {
+      toast.error('Please provide a reason for rejection');
+      return;
+    }
+
+    try {
+      await handleUpdateProjectStatus(selectedProject._id, 'rejected', rejectionReason);
+      toast.success('Project rejected successfully');
+      setRejectModalOpen(false);
+      setRejectionReason('');
+      setSelectedProject(null);
+    } catch (error) {
+      toast.error('Failed to reject project');
+    }
+  };
 
   if (!user) {
     return null;
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      {/* Top Navigation Bar */}
-      <nav className="bg-white shadow-sm fixed w-full z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex items-center">
-              <button
-                type="button"
-                className="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500"
-                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              >
-                <span className="sr-only">Open main menu</span>
-                {isSidebarOpen ? (
-                  <XMarkIcon className="block h-6 w-6" aria-hidden="true" />
-                ) : (
-                  <Bars3Icon className="block h-6 w-6" aria-hidden="true" />
-                )}
-              </button>
-              <div className="flex-shrink-0 flex items-center ml-4">
-                <img
-                  className="h-8 w-auto"
-                  src="/logo.png"
-                  alt="Disserto"
-                />
-              </div>
-            </div>
-            <div className="flex items-center space-x-4">
-              <div className="text-sm text-gray-700">
-                <span className="font-medium">{user.name}</span>
-                <span className="mx-2">|</span>
-                <span>{user.role}</span>
-              </div>
-              <button
-                onClick={handleLogout}
-                className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-              >
-                <ArrowLeftOnRectangleIcon className="h-5 w-5 mr-2" />
-                Logout
-              </button>
-            </div>
+    <div className="min-h-full bg-gray-100">
+      <main className="flex-1">
+        <div className="py-6">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
+            <h1 className="text-2xl font-semibold text-gray-900">
+              Dashboard
+            </h1>
           </div>
-        </div>
-      </nav>
-
-      <div className="flex pt-16">
-        {/* Sidebar */}
-        <div className={`${isSidebarOpen ? 'w-64' : 'w-20'} bg-white shadow-lg transition-all duration-300 fixed h-full`}>
-          <div className="h-full flex flex-col">
-            <div className="flex-1 flex flex-col pt-5 pb-4 overflow-y-auto">
-              <nav className="flex-1 px-2 space-y-1">
-                {navigation.map((item) => {
-                  const isActive = location.pathname === item.href;
-                  return (
-                    <Link
-                      key={item.name}
-                      to={item.href}
-                      className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md ${
-                        isActive
-                          ? 'bg-gray-100 text-gray-900'
-                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                      }`}
-                    >
-                      <item.icon
-                        className={`mr-3 flex-shrink-0 h-6 w-6 ${
-                          isActive
-                            ? 'text-gray-500'
-                            : 'text-gray-400 group-hover:text-gray-500'
-                        }`}
-                        aria-hidden="true"
-                      />
-                      {isSidebarOpen && item.name}
-                    </Link>
-                  );
-                })}
-              </nav>
-            </div>
-          </div>
-        </div>
-
-        {/* Main Content */}
-        <div className={`flex-1 ${isSidebarOpen ? 'ml-64' : 'ml-20'} transition-all duration-300`}>
-          <main className="flex-1">
-            <div className="py-6">
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
-                <h1 className="text-2xl font-semibold text-gray-900">
-                  {navigation.find(item => item.href === location.pathname)?.name || 'Dashboard'}
-                </h1>
+          
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
+            {/* Stats Overview */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 mt-6">
+              <div className="bg-white overflow-hidden shadow rounded-lg">
+                <div className="px-4 py-5 sm:p-6">
+                  <dt className="text-sm font-medium text-gray-500 truncate">
+                    Total Pending Proposals
+                  </dt>
+                  <dd className="mt-1 text-3xl font-semibold text-gray-900">
+                    {pendingProjects?.length || 0}
+                  </dd>
+                </div>
               </div>
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
-                <div className="py-4">
-                  {/* Pending Proposals Section */}
-                  <div className="bg-white shadow rounded-lg mb-6">
-                    <div className="px-4 py-5 sm:p-6">
-                      <h3 className="text-lg leading-6 font-medium text-gray-900">
-                        Pending Proposals
-                      </h3>
-                      <div className="mt-5">
-                        {isLoading ? (
-                          <div className="flex justify-center">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-                          </div>
-                        ) : error ? (
-                          <div className="bg-red-50 border-l-4 border-red-400 p-4">
-                            <div className="flex">
-                              <div className="flex-shrink-0">
-                                <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                                </svg>
-                              </div>
-                              <div className="ml-3">
-                                <p className="text-sm text-red-700">{error}</p>
-                              </div>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="space-y-4">
-                            {pendingProjects?.map((project) => (
-                              <div key={project._id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                                <div>
-                                  <h4 className="text-sm font-medium text-gray-900">{project.title}</h4>
-                                  <p className="text-sm text-gray-500">{project.student?.name}</p>
-                                </div>
-                                <div className="flex space-x-2">
-                                  <button
-                                    onClick={() => handleUpdateProjectStatus(project._id, 'approved')}
-                                    className="inline-flex items-center px-3 py-1 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-                                  >
-                                    Approve
-                                  </button>
-                                  <button
-                                    onClick={() => handleUpdateProjectStatus(project._id, 'rejected')}
-                                    className="inline-flex items-center px-3 py-1 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                                  >
-                                    Reject
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Approved Proposals Section */}
-                  <div className="bg-white shadow rounded-lg">
-                    <div className="px-4 py-5 sm:p-6">
-                      <h3 className="text-lg leading-6 font-medium text-gray-900">
-                        Approved Proposals
-                      </h3>
-                      <div className="mt-5">
-                        <div className="space-y-4">
-                          {projects?.filter(p => p.status === 'approved')?.map((project) => (
-                            <div key={project._id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                              <div>
-                                <h4 className="text-sm font-medium text-gray-900">{project.title}</h4>
-                                <p className="text-sm text-gray-500">
-                                  Student: {project.student?.name}
-                                </p>
-                                <p className="text-sm text-gray-500">
-                                  Guide: {project.guide?.name || 'Not assigned'}
-                                </p>
-                              </div>
-                              {!project.guide && (
-                                <button
-                                  onClick={() => {
-                                    setSelectedProject(project);
-                                    setAssigningGuide(true);
-                                  }}
-                                  className="inline-flex items-center px-3 py-1 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                                >
-                                  Assign Guide
-                                </button>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+              
+              <div className="bg-white overflow-hidden shadow rounded-lg">
+                <div className="px-4 py-5 sm:p-6">
+                  <dt className="text-sm font-medium text-gray-500 truncate">
+                    Approved Projects
+                  </dt>
+                  <dd className="mt-1 text-3xl font-semibold text-gray-900">
+                    {projects?.filter(p => p.status === 'approved').length || 0}
+                  </dd>
+                </div>
+              </div>
+              
+              <div className="bg-white overflow-hidden shadow rounded-lg">
+                <div className="px-4 py-5 sm:p-6">
+                  <dt className="text-sm font-medium text-gray-500 truncate">
+                    Total Faculty
+                  </dt>
+                  <dd className="mt-1 text-3xl font-semibold text-gray-900">
+                    {faculty?.length || 0}
+                  </dd>
+                </div>
+              </div>
+              
+              <div className="bg-white overflow-hidden shadow rounded-lg">
+                <div className="px-4 py-5 sm:p-6">
+                  <dt className="text-sm font-medium text-gray-500 truncate">
+                    Total Students
+                  </dt>
+                  <dd className="mt-1 text-3xl font-semibold text-gray-900">
+                    {students?.length || 0}
+                  </dd>
                 </div>
               </div>
             </div>
-          </main>
+            
+            {/* Pending Proposals Section */}
+            <div className="bg-white shadow sm:rounded-lg mb-6">
+              <div className="px-4 py-5 border-b border-gray-200 sm:px-6">
+                <h3 className="text-lg leading-6 font-medium text-gray-900">
+                  Pending Proposals
+                </h3>
+              </div>
+              
+              <div className="overflow-x-auto">
+                {isLoading ? (
+                  <div className="flex justify-center py-6">
+                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600"></div>
+                  </div>
+                ) : error ? (
+                  <div className="p-4 bg-red-50 text-red-700 border-l-4 border-red-500">
+                    {error}
+                  </div>
+                ) : pendingProjects?.length === 0 ? (
+                  <div className="text-center py-6 text-gray-500">
+                    No pending proposals to display
+                  </div>
+                ) : (
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Student
+                        </th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Project Title
+                        </th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Department
+                        </th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Submission Date
+                        </th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {pendingProjects?.map((project) => (
+                        <tr key={project._id}>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center">
+                              <div className="ml-4">
+                                <div className="text-sm font-medium text-gray-900">
+                                  {project.student?.fullName}
+                                </div>
+                                <div className="text-sm text-gray-500">
+                                  ID: {project.student?._id?.substring(0, 8)}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900">{project.title}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900">{project.department}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900">
+                              {new Date(project.createdAt).toLocaleDateString()}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <div className="flex space-x-2">
+                              <button
+                                onClick={() => handleUpdateProjectStatus(project._id, 'approved')}
+                                className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                onClick={() => handleRejectProject(project._id)}
+                                className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700"
+                              >
+                                Reject
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+
+            {/* Approved Proposals Section */}
+            <div className="bg-white shadow sm:rounded-lg mb-6">
+              <div className="px-4 py-5 border-b border-gray-200 sm:px-6">
+                <h3 className="text-lg leading-6 font-medium text-gray-900">
+                  Approved Proposals
+                </h3>
+              </div>
+              
+              <div className="overflow-x-auto">
+                {isLoading ? (
+                  <div className="flex justify-center py-6">
+                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600"></div>
+                  </div>
+                ) : projects?.filter(p => p.status === 'approved').length === 0 ? (
+                  <div className="text-center py-6 text-gray-500">
+                    No approved proposals to display
+                  </div>
+                ) : (
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Student
+                        </th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Project Title
+                        </th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Assigned Guide
+                        </th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {projects?.filter(p => p.status === 'approved')?.map((project) => (
+                        <tr key={project._id}>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center">
+                              <div className="ml-4">
+                                <div className="text-sm font-medium text-gray-900">
+                                  {project.student?.fullName}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900">{project.title}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            {project.guide ? (
+                              <div>
+                                <div className="text-sm font-medium text-gray-900">
+                                  {project.guide.fullName}
+                                </div>
+                                <div className="text-sm text-gray-500">
+                                  {project.guide.email}
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                                Not Assigned
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            {!project.guide ? (
+                              <button
+                                onClick={() => {
+                                  setSelectedProject(project);
+                                  setAssigningGuide(true);
+                                }}
+                                className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
+                              >
+                                Assign Guide
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => {
+                                  setSelectedProject(project);
+                                  setAssigningGuide(true);
+                                }}
+                                className="inline-flex items-center px-3 py-1 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                              >
+                                Reassign Guide
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      </main>
+
+      {/* Guide Assignment Modal */}
+      {assigningGuide && selectedProject && (
+        <div className="fixed z-10 inset-0 overflow-y-auto">
+          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+              <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+            </div>
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            <div className="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
+              <div>
+                <div className="mt-3 text-center sm:mt-5">
+                  <h3 className="text-lg leading-6 font-medium text-gray-900">
+                    {selectedProject.guide ? 'Reassign Guide' : 'Assign Guide'} to Project
+                  </h3>
+                  <div className="mt-2">
+                    <p className="text-sm text-gray-500">
+                      Project: {selectedProject.title}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      Student: {selectedProject.student?.fullName}
+                    </p>
+                    {selectedProject.guide && (
+                      <p className="text-sm text-gray-500 mt-2">
+                        Current Guide: {selectedProject.guide.fullName}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="mt-5">
+                  <div className="grid grid-cols-1 gap-4 max-h-60 overflow-y-auto">
+                    {departmentFaculty?.map((faculty) => (
+                      <button
+                        key={faculty._id}
+                        onClick={() => handleAssignGuideToProject(selectedProject._id, faculty._id)}
+                        className="flex items-center justify-between p-3 border border-gray-300 rounded-lg hover:bg-gray-50"
+                      >
+                        <div className="flex items-center">
+                          <div className="bg-indigo-100 rounded-full w-10 h-10 flex items-center justify-center text-indigo-500 mr-3">
+                            {faculty.fullName?.charAt(0) || 'F'}
+                          </div>
+                          <div className="text-left">
+                            <p className="text-sm font-medium text-gray-900">{faculty.fullName}</p>
+                            <p className="text-xs text-gray-500">{faculty.email}</p>
+                          </div>
+                        </div>
+                        <div>
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            {faculty.assignedStudents?.length || 0} students
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="mt-5 sm:mt-6">
+                <button
+                  type="button"
+                  className="inline-flex justify-center w-full rounded-md border border-transparent shadow-sm px-4 py-2 bg-gray-600 text-base font-medium text-white hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 sm:text-sm"
+                  onClick={() => {
+                    setAssigningGuide(false);
+                    setSelectedProject(null);
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rejection Reason Modal */}
+      {rejectModalOpen && selectedProject && (
+        <div className="fixed z-10 inset-0 overflow-y-auto">
+          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+              <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+            </div>
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            <div className="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
+              <div>
+                <div className="mt-3 text-center sm:mt-5">
+                  <h3 className="text-lg leading-6 font-medium text-gray-900">
+                    Reject Proposal
+                  </h3>
+                  <div className="mt-2">
+                    <p className="text-sm text-gray-500">
+                      Student: {selectedProject.student?.fullName}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      Proposal Title: {selectedProject.title}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-5">
+                  <label htmlFor="rejectionReason" className="block text-sm font-medium text-gray-700">
+                    Reason for Rejection <span className="text-red-500">*</span>
+                  </label>
+                  <div className="mt-1">
+                    <textarea
+                      id="rejectionReason"
+                      name="rejectionReason"
+                      rows={4}
+                      className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                      placeholder="Project idea is too broad; please refine your scope."
+                      value={rejectionReason}
+                      onChange={(e) => setRejectionReason(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3 sm:grid-flow-row-dense">
+                <button
+                  type="button"
+                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:col-start-2 sm:text-sm"
+                  onClick={submitRejection}
+                >
+                  Submit Rejection
+                </button>
+                <button
+                  type="button"
+                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:col-start-1 sm:text-sm"
+                  onClick={() => {
+                    setRejectModalOpen(false);
+                    setRejectionReason('');
+                    setSelectedProject(null);
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -173,4 +173,52 @@ exports.assignGuide = async (req, res) => {
         console.error(error);
         res.status(500).json({ message: 'Server error', error: error.message });
     }
+};
+
+// @desc    Update user's own profile
+// @route   PUT /api/users/profile
+// @access  Private (all authenticated users)
+exports.updateProfile = async (req, res) => {
+    try {
+        const { fullName, email, department, phone } = req.body;
+        const userId = req.user.id;
+
+        const user = await User.findById(userId);
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        // If changing email, check if it's already taken
+        if (email && email !== user.email) {
+            const emailExists = await User.findOne({ email });
+            if (emailExists) {
+                return res.status(400).json({ message: 'Email already in use' });
+            }
+        }
+
+        // Update user fields
+        if (fullName) user.fullName = fullName;
+        if (email) user.email = email;
+        if (department) user.department = department;
+        if (phone) user.phone = phone;
+
+        const updatedUser = await user.save();
+
+        // Create response object with token
+        const response = {
+            _id: updatedUser._id,
+            fullName: updatedUser.fullName,
+            email: updatedUser.email,
+            role: updatedUser.role,
+            department: updatedUser.department,
+            phone: updatedUser.phone,
+            token: req.user.token // Make sure the token is included
+        };
+
+        res.json(response);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
 }; 

@@ -1,6 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 
 // Layout components
 import Layout from './components/layout/Layout';
@@ -15,6 +15,12 @@ import StudentDashboard from './pages/student/Dashboard';
 import FacultyDashboard from './pages/faculty/Dashboard';
 import HodDashboard from './pages/hod/Dashboard';
 import AdminDashboard from './pages/admin/Dashboard';
+
+// HOD pages with lazy loading
+const HodProposals = lazy(() => import('./pages/hod/Proposals'));
+const HodGuides = lazy(() => import('./pages/hod/Guides'));
+const HodMeetings = lazy(() => import('./pages/hod/Meetings'));
+const HodProfile = lazy(() => import('./pages/hod/Profile'));
 
 // Error boundary component
 class ErrorBoundary extends React.Component {
@@ -118,6 +124,46 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={['hod']}>
                 <HodDashboard />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="hod/proposals" 
+            element={
+              <ProtectedRoute allowedRoles={['hod']}>
+                <Suspense fallback={<div className="p-4 flex justify-center"><div className="w-8 h-8 border-t-2 border-b-2 border-indigo-500 rounded-full animate-spin"></div></div>}>
+                  <HodProposals />
+                </Suspense>
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="hod/guides" 
+            element={
+              <ProtectedRoute allowedRoles={['hod']}>
+                <Suspense fallback={<div className="p-4 flex justify-center"><div className="w-8 h-8 border-t-2 border-b-2 border-indigo-500 rounded-full animate-spin"></div></div>}>
+                  <HodGuides />
+                </Suspense>
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="hod/meetings" 
+            element={
+              <ProtectedRoute allowedRoles={['hod']}>
+                <Suspense fallback={<div className="p-4 flex justify-center"><div className="w-8 h-8 border-t-2 border-b-2 border-indigo-500 rounded-full animate-spin"></div></div>}>
+                  <HodMeetings />
+                </Suspense>
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="hod/profile" 
+            element={
+              <ProtectedRoute allowedRoles={['hod']}>
+                <Suspense fallback={<div className="p-4 flex justify-center"><div className="w-8 h-8 border-t-2 border-b-2 border-indigo-500 rounded-full animate-spin"></div></div>}>
+                  <HodProfile />
+                </Suspense>
               </ProtectedRoute>
             } 
           />
