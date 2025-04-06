@@ -84,10 +84,45 @@ const getAllFaculty = async (token, forceRefresh = false) => {
 
     console.log('Making API call to get faculty with token:', token ? token.substring(0, 15) + '...' : 'No token');
     
-    const response = await axios.get(
-      `${API_URL}/users/faculty`, 
-      createAuthHeader(token)
-    );
+    let response;
+    let endpoint = `${API_URL}/users/faculty`;
+    let errorMessage = '';
+    
+    try {
+      // First try the regular faculty endpoint
+      console.log('Trying primary faculty endpoint:', endpoint);
+      response = await axios.get(endpoint, createAuthHeader(token));
+    } catch (error) {
+      console.warn('Primary faculty endpoint failed:', error.response?.status, error.response?.data?.message);
+      errorMessage = error.response?.data?.message || 'Failed to access faculty data';
+      
+      // If that fails, try the HOD-specific endpoint
+      try {
+        endpoint = `${API_URL}/users/hod-faculty`;
+        console.log('Trying fallback faculty endpoint:', endpoint);
+        response = await axios.get(endpoint, createAuthHeader(token));
+      } catch (fallbackError) {
+        console.error('Fallback faculty endpoint also failed:', fallbackError.response?.status);
+        
+        // If both endpoints fail, try a direct query as a last resort
+        try {
+          console.log('Trying direct faculty query as last resort');
+          const usersResponse = await axios.get(`${API_URL}/users?role=faculty`, createAuthHeader(token));
+          if (usersResponse.data && Array.isArray(usersResponse.data)) {
+            response = usersResponse;
+          } else {
+            throw new Error('Invalid response format from users endpoint');
+          }
+        } catch (lastError) {
+          console.error('All faculty data access attempts failed');
+          throw new Error(`${errorMessage}. Additional error: ${lastError.response?.data?.message || lastError.message}`);
+        }
+      }
+    }
+    
+    if (!response || !response.data) {
+      throw new Error('No data received from faculty endpoints');
+    }
     
     // Update cache
     cache.faculty = response.data;

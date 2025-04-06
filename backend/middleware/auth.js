@@ -28,24 +28,40 @@ exports.protect = async (req, res, next) => {
 
             next();
         } catch (error) {
-            console.error(error);
+            console.error('Token verification error:', error.message);
             res.status(401).json({ message: 'Not authorized, token failed' });
         }
-    }
-
-    if (!token) {
+    } else if (!token) {
         res.status(401).json({ message: 'Not authorized, no token' });
     }
 };
 
-// Authorize specific roles
-exports.authorize = (...roles) => {
+// Create a flexible role-based access control utility
+exports.allowRoles = (...roles) => {
     return (req, res, next) => {
-        if (!roles.includes(req.user.role)) {
-            return res.status(403).json({
-                message: `Role (${req.user.role}) is not authorized to access this resource`
+        console.log(`[Auth] Request from user role: ${req.user?.role}, allowed roles: ${roles.join(', ')}`);
+        
+        if (!req.user) {
+            console.log('[Auth] No user found in request');
+            return res.status(401).json({
+                message: 'User authentication required'
             });
         }
+        
+        if (!roles.includes(req.user.role)) {
+            console.log(`[Auth] Access denied - ${req.user.role} not in allowed roles: ${roles.join(', ')}`);
+            return res.status(403).json({
+                message: `Access denied. Your role (${req.user.role}) is not authorized for this resource. Required roles: ${roles.join(', ')}`
+            });
+        }
+        
+        console.log(`[Auth] Access granted for ${req.user.role} to ${req.method} ${req.originalUrl}`);
         next();
     };
+};
+
+// Keep the older authorize function for backward compatibility
+exports.authorize = (...roles) => {
+    console.log('[Auth] Using legacy authorize function');
+    return exports.allowRoles(...roles);
 }; 

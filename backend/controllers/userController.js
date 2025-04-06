@@ -26,13 +26,27 @@ exports.getUsers = async (req, res) => {
 
 // @desc    Get faculty users for guide assignment
 // @route   GET /api/users/faculty
-// @access  Private/HOD
+// @access  Private/HOD,Admin
 exports.getFaculty = async (req, res) => {
     try {
+        console.log('[Controller] getFaculty called by user:', req.user.fullName);
+        console.log('[Controller] User role:', req.user.role);
+        
+        // Double-check authorization here too
+        if (req.user.role !== 'hod' && req.user.role !== 'admin') {
+            console.log('[Controller] Unauthorized access attempt in getFaculty controller');
+            return res.status(403).json({ 
+                message: 'You are not authorized to access faculty data',
+                role: req.user.role,
+                requiredRoles: ['hod', 'admin']
+            });
+        }
+        
         const faculty = await User.find({ role: 'faculty' }).select('-password');
+        console.log(`[Controller] Found ${faculty.length} faculty members`);
         res.json(faculty);
     } catch (error) {
-        console.error(error);
+        console.error('[Controller] Error in getFaculty:', error.message);
         res.status(500).json({ message: 'Server error', error: error.message });
     }
 };

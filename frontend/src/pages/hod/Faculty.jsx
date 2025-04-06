@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
 import hodService from '../../services/hodService';
+import axios from 'axios';
 
 const Faculty = () => {
   const { user } = useSelector((state) => state.auth);
@@ -11,6 +12,7 @@ const Faculty = () => {
   const [guideFilter, setGuideFilter] = useState('all');
   const [sortBy, setSortBy] = useState('name');
   const [sortOrder, setSortOrder] = useState('asc');
+  const [error, setError] = useState(null);
 
   // Fetch faculty members for HOD
   useEffect(() => {
@@ -18,14 +20,39 @@ const Faculty = () => {
       if (!user) return;
       
       setLoadingFaculty(true);
+      setError(null);
+      
       try {
-        const faculty = await hodService.getDepartmentFaculty(
-          user.token, 
-          user.department || user.branch
-        );
-        setFacultyMembers(faculty);
+        // First try with the service method
+        try {
+          const faculty = await hodService.getAllFaculty(user.token);
+          setFacultyMembers(faculty);
+          setLoadingFaculty(false);
+          return;
+        } catch (serviceError) {
+          console.warn('Error using hodService:', serviceError);
+          // If it fails, try direct API call as fallback
+        }
+        
+        // Direct API call as fallback
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+        const headers = {
+          Authorization: `Bearer ${user.token}`
+        };
+        
+        try {
+          // First try the regular faculty endpoint
+          const response = await axios.get(`${API_URL}/users/faculty`, { headers });
+          setFacultyMembers(response.data);
+        } catch (firstError) {
+          console.log('Regular API call failed, trying HOD-specific endpoint');
+          // If that fails, try the HOD-specific endpoint
+          const fallbackResponse = await axios.get(`${API_URL}/users/hod-faculty`, { headers });
+          setFacultyMembers(fallbackResponse.data);
+        }
       } catch (error) {
         console.error('Error fetching faculty:', error);
+        setError('Failed to load faculty members. You may not have the necessary permissions.');
         toast.error('Failed to load faculty members');
       } finally {
         setLoadingFaculty(false);
@@ -41,7 +68,7 @@ const Faculty = () => {
     const matchesSearch = 
       faculty.fullName?.toLowerCase().includes(facultySearch.toLowerCase()) ||
       faculty.email?.toLowerCase().includes(facultySearch.toLowerCase()) ||
-      faculty.branch?.toLowerCase().includes(facultySearch.toLowerCase());
+      (faculty.branch || faculty.department || '')?.toLowerCase().includes(facultySearch.toLowerCase());
     
     // Filter by guide status
     const isGuide = Array.isArray(faculty.assignedStudents) && faculty.assignedStudents.length > 0;
@@ -68,8 +95,8 @@ const Faculty = () => {
         compareB = b.email?.toLowerCase() || '';
         break;
       case 'department':
-        compareA = a.branch?.toLowerCase() || '';
-        compareB = b.branch?.toLowerCase() || '';
+        compareA = (a.branch || a.department || '')?.toLowerCase() || '';
+        compareB = (b.branch || b.department || '')?.toLowerCase() || '';
         break;
       case 'students':
         compareA = Array.isArray(a.assignedStudents) ? a.assignedStudents.length : 0;
@@ -109,15 +136,15 @@ const Faculty = () => {
               Faculty Members
             </h1>
             <p className="mt-1 text-sm text-gray-500">
-              Manage and view all faculty members in your department
+              View and manage all faculty members in the system regardless of department
             </p>
           </div>
           
           <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 mt-6">
             {/* Search and filters */}
             <div className="bg-white shadow rounded-lg p-4 mb-6">
-              <div className="md:flex md:justify-between md:items-center space-y-4 md:space-y-0">
-                <div className="md:flex-1 md:mr-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
                   <label htmlFor="search" className="block text-sm font-medium text-gray-700 mb-1">
                     Search Faculty
                   </label>
@@ -176,6 +203,14 @@ const Faculty = () => {
               {loadingFaculty ? (
                 <div className="flex justify-center py-12">
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+                </div>
+              ) : error ? (
+                <div className="text-center py-12">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="mx-auto h-12 w-12 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <h3 className="mt-2 text-sm font-medium text-gray-900">Error</h3>
+                  <p className="mt-1 text-sm text-red-500">{error}</p>
                 </div>
               ) : sortedFaculty.length > 0 ? (
                 <div className="overflow-x-auto">
@@ -280,34 +315,38 @@ const Faculty = () => {
                   </svg>
                   <h3 className="mt-2 text-sm font-medium text-gray-900">No faculty members found</h3>
                   <p className="mt-1 text-sm text-gray-500">
-                    {facultySearch ? 'Try adjusting your search terms' : 'Faculty members will appear here when added'}
+                    {facultySearch || guideFilter !== 'all' 
+                      ? 'Try adjusting your search or filter' 
+                      : 'Faculty members will appear here when added'}
                   </p>
                 </div>
               )}
             </div>
             
             {/* Summary card at the bottom */}
-            <div className="mt-6 bg-white shadow rounded-lg p-6">
-              <h2 className="text-lg font-medium text-gray-900 mb-4">Faculty Summary</h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-indigo-50 rounded-lg p-4">
-                  <div className="text-sm font-medium text-indigo-800 mb-1">Total Faculty Members</div>
-                  <div className="text-2xl font-semibold text-indigo-900">{facultyMembers.length}</div>
-                </div>
-                <div className="bg-green-50 rounded-lg p-4">
-                  <div className="text-sm font-medium text-green-800 mb-1">Assigned as Guides</div>
-                  <div className="text-2xl font-semibold text-green-900">
-                    {facultyMembers.filter(f => Array.isArray(f.assignedStudents) && f.assignedStudents.length > 0).length}
+            {facultyMembers.length > 0 && (
+              <div className="mt-6 bg-white shadow rounded-lg p-6">
+                <h2 className="text-lg font-medium text-gray-900 mb-4">Faculty Summary</h2>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-indigo-50 rounded-lg p-4">
+                    <div className="text-sm font-medium text-indigo-800 mb-1">Total Faculty Members</div>
+                    <div className="text-2xl font-semibold text-indigo-900">{facultyMembers.length}</div>
                   </div>
-                </div>
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <div className="text-sm font-medium text-gray-800 mb-1">Not Assigned</div>
-                  <div className="text-2xl font-semibold text-gray-900">
-                    {facultyMembers.filter(f => !Array.isArray(f.assignedStudents) || f.assignedStudents.length === 0).length}
+                  <div className="bg-green-50 rounded-lg p-4">
+                    <div className="text-sm font-medium text-green-800 mb-1">Assigned as Guides</div>
+                    <div className="text-2xl font-semibold text-green-900">
+                      {facultyMembers.filter(f => Array.isArray(f.assignedStudents) && f.assignedStudents.length > 0).length}
+                    </div>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <div className="text-sm font-medium text-gray-800 mb-1">Not Assigned</div>
+                    <div className="text-2xl font-semibold text-gray-900">
+                      {facultyMembers.filter(f => !Array.isArray(f.assignedStudents) || f.assignedStudents.length === 0).length}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </main>
