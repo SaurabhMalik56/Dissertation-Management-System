@@ -1,33 +1,77 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
 import useHodDashboard from '../../hooks/useHodDashboard';
 
 const Proposals = () => {
   const {
-    pendingProjects,
+    projects,
     isLoading,
     error,
     handleUpdateProjectStatus,
-    fetchDashboardData
+    fetchDashboardData,
+    studentDetails,
+    handleViewProjectDetails,
+    selectedProject,
+    isModalOpen,
+    setIsModalOpen,
+    setSelectedProject
   } = useHodDashboard();
   
   const { user } = useSelector((state) => state.auth);
-  const [selectedProject, setSelectedProject] = useState(null);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [statusFilter, setStatusFilter] = useState('pending');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [dataFetched, setDataFetched] = useState(false);
 
+  // Close modal function
+  const closeModal = useCallback(() => {
+    setIsModalOpen(false);
+    setSelectedProject(null);
+  }, [setIsModalOpen, setSelectedProject]);
+
+  // Only fetch data once when component mounts and user is available
   useEffect(() => {
-    if (!user) return;
-    fetchDashboardData('projects');
-  }, [user, fetchDashboardData]);
+    if (!user || dataFetched) return;
+    
+    const loadData = async () => {
+      await fetchDashboardData('projects');
+      setDataFetched(true);
+    };
+    
+    loadData();
+    // We're explicitly excluding fetchDashboardData from dependencies
+    // to prevent unnecessary re-fetches
+  }, [user, dataFetched]);
 
-  const handleRejectProject = (projectId) => {
-    setSelectedProject(pendingProjects.find(p => p._id === projectId));
+  // Filter projects based on status and search term - memoized to prevent recalculation
+  const filteredProjects = useMemo(() => {
+    return projects.filter(project => {
+      const matchesStatus = statusFilter === 'all' || project.status === statusFilter;
+      const matchesSearch = searchTerm === '' || 
+        project.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        project.department?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        project.student?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        project.studentEmail?.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      return matchesStatus && matchesSearch;
+    });
+  }, [projects, statusFilter, searchTerm]);
+  
+  // Sort projects by creation date (newest first) - memoized to prevent recalculation
+  const sortedProjects = useMemo(() => {
+    return [...filteredProjects].sort((a, b) => 
+      new Date(b.createdAt) - new Date(a.createdAt)
+    );
+  }, [filteredProjects]);
+
+  const handleRejectProject = useCallback((projectId) => {
+    setSelectedProject(projects.find(p => p._id === projectId));
     setRejectModalOpen(true);
-  };
+  }, [projects]);
 
-  const submitRejection = async () => {
+  const submitRejection = useCallback(async () => {
     if (!rejectionReason.trim()) {
       toast.error('Please provide a reason for rejection');
       return;
@@ -42,7 +86,7 @@ const Proposals = () => {
     } catch (error) {
       toast.error('Failed to reject project');
     }
-  };
+  }, [rejectionReason, selectedProject, handleUpdateProjectStatus]);
 
   return (
     <div className="min-h-full bg-gray-100">
@@ -53,19 +97,89 @@ const Proposals = () => {
               Project Proposals
             </h1>
             <p className="mt-1 text-sm text-gray-500">
-              Review and manage student project proposals
+              Review and manage student project proposals for your department
             </p>
           </div>
           
           <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 mt-6">
-            {/* Pending Proposals Section */}
+            {/* Filters Section */}
+            <div className="bg-white shadow sm:rounded-lg mb-6 p-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="statusFilter" className="block text-sm font-medium text-gray-700 mb-1">
+                    Filter by Status
+                  </label>
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => setStatusFilter('all')}
+                      className={`px-3 py-2 rounded-md text-sm font-medium ${
+                        statusFilter === 'all' 
+                          ? 'bg-indigo-100 text-indigo-800 border border-indigo-300' 
+                          : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                      }`}
+                    >
+                      All
+                    </button>
+                    <button
+                      onClick={() => setStatusFilter('pending')}
+                      className={`px-3 py-2 rounded-md text-sm font-medium ${
+                        statusFilter === 'pending' 
+                          ? 'bg-yellow-100 text-yellow-800 border border-yellow-300' 
+                          : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                      }`}
+                    >
+                      Pending
+                    </button>
+                    <button
+                      onClick={() => setStatusFilter('approved')}
+                      className={`px-3 py-2 rounded-md text-sm font-medium ${
+                        statusFilter === 'approved' 
+                          ? 'bg-green-100 text-green-800 border border-green-300' 
+                          : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                      }`}
+                    >
+                      Approved
+                    </button>
+                    <button
+                      onClick={() => setStatusFilter('rejected')}
+                      className={`px-3 py-2 rounded-md text-sm font-medium ${
+                        statusFilter === 'rejected' 
+                          ? 'bg-red-100 text-red-800 border border-red-300' 
+                          : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                      }`}
+                    >
+                      Rejected
+                    </button>
+                  </div>
+                </div>
+                
+                <div>
+                  <label htmlFor="search" className="block text-sm font-medium text-gray-700 mb-1">
+                    Search Proposals
+                  </label>
+                  <input
+                    type="text"
+                    id="search"
+                    placeholder="Search by title, student name, email, or department..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+            </div>
+            
+            {/* Project Proposals Section */}
             <div className="bg-white shadow sm:rounded-lg mb-6">
               <div className="px-4 py-5 border-b border-gray-200 sm:px-6">
                 <h3 className="text-lg leading-6 font-medium text-gray-900">
-                  Pending Proposals
+                  {statusFilter === 'all' ? 'All Proposals' : 
+                   statusFilter === 'pending' ? 'Pending Proposals' :
+                   statusFilter === 'approved' ? 'Approved Proposals' : 'Rejected Proposals'}
                 </h3>
                 <p className="mt-1 max-w-2xl text-sm text-gray-500">
-                  These proposals require your review
+                  {statusFilter === 'pending' ? 'These proposals require your review' : 
+                   `Showing ${sortedProjects.length} ${statusFilter === 'all' ? '' : statusFilter} proposals`}
                 </p>
               </div>
               
@@ -78,9 +192,10 @@ const Proposals = () => {
                   <div className="p-4 bg-red-50 text-red-700 border-l-4 border-red-500">
                     {error}
                   </div>
-                ) : pendingProjects?.length === 0 ? (
+                ) : sortedProjects?.length === 0 ? (
                   <div className="text-center py-6 text-gray-500">
-                    No pending proposals to display
+                    No {statusFilter === 'all' ? '' : statusFilter} proposals to display
+                    {searchTerm && ' matching your search criteria'}
                   </div>
                 ) : (
                   <table className="min-w-full divide-y divide-gray-200">
@@ -96,6 +211,9 @@ const Proposals = () => {
                           Department
                         </th>
                         <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Status
+                        </th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Submission Date
                         </th>
                         <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -104,26 +222,39 @@ const Proposals = () => {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {pendingProjects?.map((project) => (
+                      {sortedProjects?.map((project) => (
                         <tr key={project._id}>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center">
                               <div className="ml-4">
                                 <div className="text-sm font-medium text-gray-900">
-                                  {project.student?.fullName}
+                                  {project.student}
                                 </div>
                                 <div className="text-sm text-gray-500">
-                                  ID: {project.student?._id?.substring(0, 8)}
+                                  {project.studentEmail || 'No email available'}
                                 </div>
                               </div>
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">{project.title}</div>
+                            <button
+                              onClick={() => handleViewProjectDetails(project._id)}
+                              className="text-blue-600 hover:text-blue-800 hover:underline focus:outline-none"
+                            >
+                              {project.title}
+                            </button>
                             <div className="text-xs text-gray-500 mt-1 line-clamp-1">{project.description}</div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-sm text-gray-900">{project.department}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                              ${project.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 
+                                project.status === 'approved' ? 'bg-green-100 text-green-800' : 
+                                'bg-red-100 text-red-800'}`}>
+                              {project.status.charAt(0).toUpperCase() + project.status.slice(1)}
+                            </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-sm text-gray-900">
@@ -132,18 +263,42 @@ const Proposals = () => {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                             <div className="flex space-x-2">
-                              <button
-                                onClick={() => handleUpdateProjectStatus(project._id, 'approved')}
-                                className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700"
-                              >
-                                Approve
-                              </button>
-                              <button
-                                onClick={() => handleRejectProject(project._id)}
-                                className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700"
-                              >
-                                Reject
-                              </button>
+                              {project.status === 'pending' && (
+                                <>
+                                  <button
+                                    key={`approve-${project._id}`}
+                                    onClick={() => handleUpdateProjectStatus(project._id, 'approved')}
+                                    className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700"
+                                  >
+                                    Approve
+                                  </button>
+                                  <button
+                                    key={`reject-${project._id}`}
+                                    onClick={() => handleRejectProject(project._id)}
+                                    className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700"
+                                  >
+                                    Reject
+                                  </button>
+                                </>
+                              )}
+                              {project.status === 'approved' && (
+                                <button
+                                  key={`cancel-${project._id}`}
+                                  onClick={() => handleRejectProject(project._id)}
+                                  className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700"
+                                >
+                                  Cancel Approval
+                                </button>
+                              )}
+                              {project.status === 'rejected' && (
+                                <button
+                                  key={`approve-rejected-${project._id}`}
+                                  onClick={() => handleUpdateProjectStatus(project._id, 'approved')}
+                                  className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700"
+                                >
+                                  Approve
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -217,6 +372,197 @@ const Proposals = () => {
                   Cancel
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Project Details Modal */}
+      {isModalOpen && selectedProject && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-start mb-4">
+              <h2 className="text-2xl font-bold text-gray-800">{selectedProject.title}</h2>
+              <button
+                onClick={closeModal}
+                className="text-gray-500 hover:text-gray-700 focus:outline-none"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="space-y-6">
+              {/* Project Information */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <h3 className="text-sm font-medium text-gray-500">Department</h3>
+                  <p className="mt-1 text-sm text-gray-900">{selectedProject.department}</p>
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-gray-500">Status</h3>
+                  <p className="mt-1 text-sm text-gray-900">
+                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                      selectedProject.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                      selectedProject.status === 'approved' ? 'bg-green-100 text-green-800' :
+                      'bg-red-100 text-red-800'
+                    }`}>
+                      {selectedProject.status}
+                    </span>
+                  </p>
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-gray-500">Submission Date</h3>
+                  <p className="mt-1 text-sm text-gray-900">
+                    {new Date(selectedProject.createdAt).toLocaleDateString()} at{' '}
+                    {new Date(selectedProject.createdAt).toLocaleTimeString()}
+                  </p>
+                </div>
+              </div>
+
+              {/* Student Information */}
+              <div className="border-t border-gray-200 pt-4">
+                <h3 className="text-lg font-medium text-gray-900 mb-3">Student Information</h3>
+                {isLoading ? (
+                  <div className="flex justify-center py-4">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-500">Name</h4>
+                      <p className="mt-1 text-sm text-gray-900">
+                        {studentDetails?.fullName || selectedProject?.student || 'N/A'}
+                      </p>
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-500">Roll Number</h4>
+                      <p className="mt-1 text-sm text-gray-900">
+                        {studentDetails?.rollNo || 'N/A'}
+                      </p>
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-500">Email</h4>
+                      <p className="mt-1 text-sm text-gray-900">
+                        {studentDetails?.email || 'N/A'}
+                      </p>
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-500">Department</h4>
+                      <p className="mt-1 text-sm text-gray-900">
+                        {studentDetails?.department || studentDetails?.branch || selectedProject?.department || 'N/A'}
+                      </p>
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-500">Year</h4>
+                      <p className="mt-1 text-sm text-gray-900">
+                        {studentDetails?.year || 'N/A'}
+                      </p>
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-500">Semester</h4>
+                      <p className="mt-1 text-sm text-gray-900">
+                        {studentDetails?.semester || 'N/A'}
+                      </p>
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-500">Contact Number</h4>
+                      <p className="mt-1 text-sm text-gray-900">
+                        {studentDetails?.contactNumber || 'N/A'}
+                      </p>
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-500">Address</h4>
+                      <p className="mt-1 text-sm text-gray-900">
+                        {studentDetails?.address || 'N/A'}
+                      </p>
+                    </div>
+                    {studentDetails?.assignedGuide && (
+                      <div className="col-span-2">
+                        <h4 className="text-sm font-medium text-gray-500">Assigned Guide</h4>
+                        <p className="mt-1 text-sm text-gray-900">
+                          {typeof studentDetails.assignedGuide === 'object' 
+                            ? studentDetails.assignedGuide.fullName 
+                            : studentDetails.assignedGuide}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Project Details */}
+              <div className="border-t border-gray-200 pt-4">
+                <h3 className="text-lg font-medium text-gray-900 mb-3">Project Details</h3>
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-500">Description</h4>
+                    <p className="mt-1 text-sm text-gray-900 whitespace-pre-wrap">
+                      {selectedProject?.description || 'No description provided'}
+                    </p>
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-500">Problem Statement</h4>
+                    <p className="mt-1 text-sm text-gray-900 whitespace-pre-wrap">
+                      {selectedProject?.problemStatement || 'No problem statement provided'}
+                    </p>
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-500">Technologies</h4>
+                    <div className="mt-1 flex flex-wrap gap-2">
+                      {(() => {
+                        if (!selectedProject?.technologies) {
+                          return <span className="text-sm text-gray-500">No technologies specified</span>;
+                        }
+                        
+                        try {
+                          if (typeof selectedProject.technologies === 'string') {
+                            return selectedProject.technologies.split(',').map((tech, index) => (
+                              <span key={index} className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
+                                {tech.trim()}
+                              </span>
+                            ));
+                          } else if (Array.isArray(selectedProject.technologies)) {
+                            return selectedProject.technologies.map((tech, index) => (
+                              <span key={index} className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
+                                {tech}
+                              </span>
+                            ));
+                          } else {
+                            return (
+                              <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
+                                {String(selectedProject.technologies)}
+                              </span>
+                            );
+                          }
+                        } catch (error) {
+                          console.error('Error displaying technologies:', error);
+                          return <span className="text-sm text-red-500">Error displaying technologies</span>;
+                        }
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Faculty Comments */}
+              {selectedProject.facultyComment && (
+                <div className="border-t border-gray-200 pt-4">
+                  <h3 className="text-lg font-medium text-gray-900 mb-3">Faculty Comments</h3>
+                  <p className="text-sm text-gray-900">{selectedProject.facultyComment}</p>
+                </div>
+              )}
+            </div>
+            
+            {/* Add a close button at the bottom for better UX */}
+            <div className="mt-6 flex justify-end">
+              <button
+                onClick={closeModal}
+                className="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded-md"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>

@@ -21,21 +21,42 @@ const getAllProjects = asyncHandler(async (req, res) => {
   // HODs can only see projects from their department
   let query = {};
   if (req.user.role === 'hod') {
-    // First get all students from this HOD's department
+    const hodDepartment = req.user.department || req.user.branch;
+    
+    // Query projects directly by department first
+    const projectsByDepartment = await Project.find({ 
+      department: hodDepartment 
+    });
+    
+    // Also get students from this HOD's department (for backward compatibility)
     const studentsInDepartment = await User.find({ 
       role: 'student',
-      department: req.user.department
+      $or: [
+        { department: hodDepartment },
+        { branch: hodDepartment }
+      ]
     }).select('_id');
     
     const studentIds = studentsInDepartment.map(student => student._id);
-    query = { student: { $in: studentIds } };
+    
+    // Combine both approaches
+    query = {
+      $or: [
+        { department: hodDepartment },
+        { student: { $in: studentIds } }
+      ]
+    };
+    
+    console.log(`[Projects] Fetching projects for HOD of department: ${hodDepartment}`);
+    console.log(`[Projects] Found ${studentsInDepartment.length} students in department`);
   }
 
   const projects = await Project.find(query)
-    .populate('student', 'name email department')
-    .populate('guide', 'name email department')
+    .populate('student', 'fullName email department branch')
+    .populate('guide', 'fullName email department branch')
     .sort({ createdAt: -1 });
 
+  console.log(`[Projects] Returning ${projects.length} projects`);
   res.status(200).json(projects);
 });
 

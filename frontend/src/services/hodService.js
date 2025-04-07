@@ -29,13 +29,56 @@ const cache = {
 // Cache expiration time in milliseconds (5 minutes)
 const CACHE_EXPIRATION = 5 * 60 * 1000;
 
+// Cache management functions
+const clearCache = () => {
+  console.log('Clearing all cache data');
+  cache.faculty = null;
+  cache.facultyTimestamp = null;
+  cache.departmentProjects = null;
+  cache.departmentProjectsTimestamp = null;
+  cache.departmentStudents = null;
+  cache.departmentStudentsTimestamp = null;
+};
+
+const clearFacultyCache = () => {
+  console.log('Clearing faculty cache data');
+  cache.faculty = null;
+  cache.facultyTimestamp = null;
+};
+
+const clearProjectsCache = () => {
+  console.log('Clearing projects cache data');
+  cache.departmentProjects = null;
+  cache.departmentProjectsTimestamp = null;
+};
+
+const clearStudentsCache = () => {
+  console.log('Clearing students cache data');
+  cache.departmentStudents = null;
+  cache.departmentStudentsTimestamp = null;
+};
+
+// Check if cache is valid
+const isCacheValid = (timestamp) => {
+  if (!timestamp) return false;
+  return Date.now() - timestamp < CACHE_EXPIRATION;
+};
+
 // Get all projects in the HOD's department with caching
 const getDepartmentProjects = async (token, forceRefresh = false, filters = {}) => {
   try {
     const now = Date.now();
+    
+    // Log cache status for debugging
+    if (cache.departmentProjects) {
+      console.log('Projects cache status: ' + (isCacheValid(cache.departmentProjectsTimestamp) ? 'valid' : 'expired'));
+    } else {
+      console.log('Projects cache: none');
+    }
+    
     // Use cached data if available and not expired, unless force refresh is requested
-    if (!forceRefresh && cache.departmentProjects && 
-        (now - cache.departmentProjectsTimestamp < CACHE_EXPIRATION)) {
+    if (!forceRefresh && cache.departmentProjects && isCacheValid(cache.departmentProjectsTimestamp)) {
+      console.log('Using cached project data');
       // Apply filters to cached data when not forcing refresh
       let filteredProjects = cache.departmentProjects;
       if (filters.status) {
@@ -47,6 +90,7 @@ const getDepartmentProjects = async (token, forceRefresh = false, filters = {}) 
       return filteredProjects;
     }
 
+    console.log('Fetching fresh project data from API');
     // Build query string from filters
     let queryParams = '';
     if (filters.status) queryParams += `status=${filters.status}&`;
@@ -68,6 +112,7 @@ const getDepartmentProjects = async (token, forceRefresh = false, filters = {}) 
     // Return data possibly filtered from server
     return response.data;
   } catch (error) {
+    console.error('Error fetching department projects:', error);
     throw new Error(error.response?.data?.message || 'Failed to fetch department projects');
   }
 };
@@ -76,12 +121,21 @@ const getDepartmentProjects = async (token, forceRefresh = false, filters = {}) 
 const getAllFaculty = async (token, forceRefresh = false) => {
   try {
     const now = Date.now();
+    
+    // Log cache status for debugging
+    if (cache.faculty) {
+      console.log('Faculty cache status: ' + (isCacheValid(cache.facultyTimestamp) ? 'valid' : 'expired'));
+    } else {
+      console.log('Faculty cache: none');
+    }
+    
     // Use cached data if available and not expired, unless force refresh is requested
-    if (!forceRefresh && cache.faculty && 
-        (now - cache.facultyTimestamp < CACHE_EXPIRATION)) {
+    if (!forceRefresh && cache.faculty && isCacheValid(cache.facultyTimestamp)) {
+      console.log('Using cached faculty data');
       return cache.faculty;
     }
 
+    console.log('Fetching fresh faculty data from API');
     console.log('Making API call to get faculty with token:', token ? token.substring(0, 15) + '...' : 'No token');
     
     let response;
@@ -127,6 +181,7 @@ const getAllFaculty = async (token, forceRefresh = false) => {
     // Update cache
     cache.faculty = response.data;
     cache.facultyTimestamp = now;
+    console.log(`Cached ${response.data.length} faculty members`);
     
     return response.data;
   } catch (error) {
@@ -159,12 +214,21 @@ const getDepartmentFaculty = async (token, department, forceRefresh = false) => 
 const getDepartmentStudents = async (token, department, forceRefresh = false) => {
   try {
     const now = Date.now();
+    
+    // Log cache status for debugging
+    if (cache.departmentStudents) {
+      console.log('Students cache status: ' + (isCacheValid(cache.departmentStudentsTimestamp) ? 'valid' : 'expired'));
+    } else {
+      console.log('Students cache: none');
+    }
+    
     // Use cached data if available and not expired, unless force refresh is requested
-    if (!forceRefresh && cache.departmentStudents && 
-        (now - cache.departmentStudentsTimestamp < CACHE_EXPIRATION)) {
+    if (!forceRefresh && cache.departmentStudents && isCacheValid(cache.departmentStudentsTimestamp)) {
+      console.log('Using cached students data');
       return cache.departmentStudents;
     }
 
+    console.log('Fetching fresh students data from API');
     console.log('Making API call to get students with token:', token ? token.substring(0, 15) + '...' : 'No token');
     console.log('Department:', department);
     
@@ -176,6 +240,7 @@ const getDepartmentStudents = async (token, department, forceRefresh = false) =>
     // Update cache
     cache.departmentStudents = response.data;
     cache.departmentStudentsTimestamp = now;
+    console.log(`Cached ${response.data.length} department students`);
     
     return response.data;
   } catch (error) {
@@ -321,34 +386,6 @@ const getDashboardData = async (token, department) => {
   }
 };
 
-// Clear all cached data
-const clearCache = () => {
-  cache.faculty = null;
-  cache.facultyTimestamp = null;
-  cache.departmentProjects = null;
-  cache.departmentProjectsTimestamp = null;
-  cache.departmentStudents = null;
-  cache.departmentStudentsTimestamp = null;
-};
-
-// Clear only faculty cache
-const clearFacultyCache = () => {
-  cache.faculty = null;
-  cache.facultyTimestamp = null;
-};
-
-// Clear only projects cache
-const clearProjectsCache = () => {
-  cache.departmentProjects = null;
-  cache.departmentProjectsTimestamp = null;
-};
-
-// Clear only students cache
-const clearStudentsCache = () => {
-  cache.departmentStudents = null;
-  cache.departmentStudentsTimestamp = null;
-};
-
 // Verify authentication status
 const verifyAuthentication = async (token) => {
   try {
@@ -408,6 +445,29 @@ const updateProfile = async (token, profileData) => {
   }
 };
 
+// Update the getStudentDetails function
+const getStudentDetails = async (studentId) => {
+  try {
+    console.log('Fetching student details from backend for ID:', studentId);
+    const response = await axios.get(`${API_URL}/hod/students/${studentId}`, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      }
+    });
+    
+    console.log('Received student details response:', response.data);
+    
+    if (response.data) {
+      return response.data;
+    } else {
+      throw new Error('No student details received from server');
+    }
+  } catch (error) {
+    console.error('Error fetching student details:', error);
+    throw error;
+  }
+};
+
 const hodService = {
   getDepartmentProjects,
   getAllFaculty,
@@ -425,7 +485,8 @@ const hodService = {
   clearStudentsCache,
   verifyAuthentication,
   getDepartmentMeetings,
-  updateProfile
+  updateProfile,
+  getStudentDetails
 };
 
 export default hodService; 
