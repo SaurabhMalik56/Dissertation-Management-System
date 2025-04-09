@@ -166,24 +166,71 @@ const useHodDashboard = () => {
       }));
       
       // Map project data
-      const mappedProjects = projectsData.map(p => ({
-        id: p._id,
-        _id: p._id,
-        title: p.title,
-        student: p.student?.fullName || 'Unassigned',
-        studentId: p.student?._id,
-        studentEmail: p.student?.email,
-        faculty: p.guide?.fullName || 'Not Assigned',
-        facultyId: p.guide?._id,
-        progress: p.progress || 0,
-        status: p.status,
-        description: p.description,
-        problemStatement: p.problemStatement,
-        technologies: p.technologies,
-        comments: p.comments,
-        createdAt: p.createdAt,
-        department: p.department
-      }));
+      const mappedProjects = projectsData.map(p => {
+        // Standardize the student information
+        let studentInfo = {
+          id: null,
+          name: 'Unassigned',
+          email: ''
+        };
+        
+        if (p.student) {
+          if (typeof p.student === 'object') {
+            studentInfo = {
+              id: p.student._id,
+              name: p.student.fullName || p.student.name || 'Unknown',
+              email: p.student.email || ''
+            };
+          } else if (typeof p.student === 'string') {
+            studentInfo.id = p.student;
+          }
+        }
+        
+        // Standardize the faculty/guide information
+        let guideInfo = {
+          id: null,
+          name: 'Not Assigned',
+          email: ''
+        };
+        
+        if (p.guide) {
+          if (typeof p.guide === 'object') {
+            guideInfo = {
+              id: p.guide._id,
+              name: p.guide.fullName || p.guide.name || 'Unknown',
+              email: p.guide.email || ''
+            };
+          } else if (typeof p.guide === 'string') {
+            guideInfo.id = p.guide;
+            // Try to find guide details in faculty data
+            const guideData = facultyData.find(f => f._id === p.guide);
+            if (guideData) {
+              guideInfo.name = guideData.fullName || guideData.name || 'Unknown';
+              guideInfo.email = guideData.email || '';
+            }
+          }
+        }
+        
+        return {
+          id: p._id,
+          _id: p._id,
+          title: p.title,
+          student: studentInfo.name,
+          studentId: studentInfo.id,
+          studentEmail: studentInfo.email,
+          faculty: guideInfo.name,
+          facultyId: guideInfo.id,
+          facultyEmail: guideInfo.email,
+          progress: p.progress || 0,
+          status: p.status,
+          description: p.description,
+          problemStatement: p.problemStatement,
+          technologies: p.technologies,
+          comments: p.comments,
+          createdAt: p.createdAt,
+          department: p.department
+        };
+      });
       
       // Update student projects and progress
       const updatedStudents = mappedStudents.map(student => {
@@ -270,11 +317,21 @@ const useHodDashboard = () => {
   const handleAssignGuideToProject = useCallback(async (projectId, guideId) => {
     try {
       setIsLoading(true);
-      await hodService.assignGuideToProject(userToken, projectId, guideId);
+      
+      // Find the project to check if it's an initial assignment or reassignment
+      const project = projects.find(p => p._id === projectId);
+      if (project) {
+        const isReassignment = !!project.facultyId;
+        console.log(`${isReassignment ? 'Reassigning' : 'Assigning'} guide for project ${projectId} to guide ${guideId}`);
+      }
+      
+      // Use the combined service function to ensure both project and student get updated
+      await hodService.assignGuideToProjectAndStudent(userToken, projectId, guideId);
+      
       toast.success('Guide assigned to project successfully');
       
-      // Refresh only the projects data
-      await fetchDashboardData('projects');
+      // Refresh all relevant data
+      await fetchDashboardData('all');
       
       return true;
     } catch (error) {
@@ -282,7 +339,7 @@ const useHodDashboard = () => {
       setIsLoading(false);
       return false;
     }
-  }, [userToken, fetchDashboardData]);
+  }, [userToken, projects, fetchDashboardData]);
   
   // Handle updating project status
   const handleUpdateProjectStatus = useCallback(async (projectId, status, feedback) => {
@@ -402,6 +459,35 @@ const useHodDashboard = () => {
     }
   };
   
+  // Handle reassigning a guide to a project and updating the student
+  const reassignGuideToProject = useCallback(async (projectId, guideId) => {
+    try {
+      setIsLoading(true);
+      
+      // Check if the project has a guide and student
+      const project = projects.find(p => p._id === projectId);
+      if (!project) {
+        throw new Error('Project not found');
+      }
+      
+      console.log(`Reassigning guide for project ${projectId} from ${project.facultyId || 'none'} to ${guideId}`);
+      
+      // Use the assignGuideToProjectAndStudent function which handles both project and student assignments
+      await hodService.assignGuideToProjectAndStudent(userToken, projectId, guideId);
+      
+      toast.success('Guide reassigned successfully');
+      
+      // Refresh all relevant data
+      await fetchDashboardData('all');
+      
+      return true;
+    } catch (error) {
+      toast.error('Failed to reassign guide: ' + error.message);
+      setIsLoading(false);
+      return false;
+    }
+  }, [userToken, projects, fetchDashboardData]);
+  
   // Return all the data and functions needed by the dashboard
   return {
     // State
@@ -430,6 +516,7 @@ const useHodDashboard = () => {
     getPagedData,
     fetchStudentDetails,
     handleViewProjectDetails,
+    reassignGuideToProject,
     setIsModalOpen: (value) => setIsModalOpen(value),
     setSelectedProject: (value) => setSelectedProject(value)
   };

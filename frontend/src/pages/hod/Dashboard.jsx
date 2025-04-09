@@ -29,6 +29,7 @@ const Dashboard = () => {
     handleAssignGuide,
     handleAssignGuideToProject,
     handleUpdateProjectStatus,
+    approveProjectWithGuide,
   } = useHodDashboard();
 
   const { user } = useSelector((state) => state.auth);
@@ -42,8 +43,20 @@ const Dashboard = () => {
 
   useEffect(() => {
     if (!user) return;
-    fetchDashboardData();
-  }, [user]);
+    
+    const loadData = async () => {
+      try {
+        console.log('Loading fresh dashboard data...');
+        await fetchDashboardData('all');
+        console.log('Dashboard data loaded successfully');
+      } catch (error) {
+        console.error('Error loading dashboard data:', error);
+        toast.error('Failed to load dashboard data');
+      }
+    };
+    
+    loadData();
+  }, [user, fetchDashboardData]);
 
   const handleLogout = () => {
     dispatch(logout());
@@ -269,7 +282,7 @@ const Dashboard = () => {
                             <div className="flex items-center">
                               <div className="ml-4">
                                 <div className="text-sm font-medium text-gray-900">
-                                  {project.student?.fullName}
+                                  {project.student}
                                 </div>
                               </div>
                             </div>
@@ -278,13 +291,13 @@ const Dashboard = () => {
                             <div className="text-sm text-gray-900">{project.title}</div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            {project.guide ? (
+                            {project.facultyId ? (
                               <div>
                                 <div className="text-sm font-medium text-gray-900">
-                                  {project.guide.fullName}
+                                  {project.faculty}
                                 </div>
                                 <div className="text-sm text-gray-500">
-                                  {project.guide.email}
+                                  {project.facultyEmail}
                                 </div>
                               </div>
                             ) : (
@@ -294,7 +307,7 @@ const Dashboard = () => {
                             )}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            {!project.guide ? (
+                            {!project.facultyId ? (
                               <button
                                 onClick={() => {
                                   setSelectedProject(project);
@@ -339,19 +352,24 @@ const Dashboard = () => {
               <div>
                 <div className="mt-3 text-center sm:mt-5">
                   <h3 className="text-lg leading-6 font-medium text-gray-900">
-                    {selectedProject.guide ? 'Reassign Guide' : 'Assign Guide'} to Project
+                    {selectedProject.facultyId ? 'Reassign Guide' : 'Assign Guide'} to Project
                   </h3>
                   <div className="mt-2">
                     <p className="text-sm text-gray-500">
                       Project: {selectedProject.title}
                     </p>
                     <p className="text-sm text-gray-500">
-                      Student: {selectedProject.student?.fullName}
+                      Student: {selectedProject.student}
                     </p>
-                    {selectedProject.guide && (
-                      <p className="text-sm text-gray-500 mt-2">
-                        Current Guide: {selectedProject.guide.fullName}
-                      </p>
+                    {selectedProject.facultyId && (
+                      <div className="mt-2 p-2 bg-yellow-50 rounded-md">
+                        <p className="text-sm font-medium text-yellow-800">
+                          Current Guide: {selectedProject.faculty}
+                        </p>
+                        <p className="text-xs text-yellow-600">
+                          This action will reassign the guide for both the project and the student
+                        </p>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -359,23 +377,36 @@ const Dashboard = () => {
                   <div className="grid grid-cols-1 gap-4 max-h-60 overflow-y-auto">
                     {departmentFaculty?.map((faculty) => (
                       <button
-                        key={faculty._id}
-                        onClick={() => handleAssignGuideToProject(selectedProject._id, faculty._id)}
-                        className="flex items-center justify-between p-3 border border-gray-300 rounded-lg hover:bg-gray-50"
+                        key={faculty.id}
+                        onClick={() => {
+                          handleAssignGuideToProject(selectedProject._id, faculty.id);
+                          setAssigningGuide(false);
+                          setSelectedProject(null);
+                        }}
+                        disabled={faculty.id === selectedProject.facultyId}
+                        className={`flex items-center justify-between p-3 border rounded-lg 
+                          ${faculty.id === selectedProject.facultyId 
+                            ? 'border-gray-200 bg-gray-100 cursor-not-allowed' 
+                            : 'border-gray-300 hover:bg-gray-50'}`}
                       >
                         <div className="flex items-center">
                           <div className="bg-indigo-100 rounded-full w-10 h-10 flex items-center justify-center text-indigo-500 mr-3">
-                            {faculty.fullName?.charAt(0) || 'F'}
+                            {faculty.name?.charAt(0) || 'F'}
                           </div>
                           <div className="text-left">
-                            <p className="text-sm font-medium text-gray-900">{faculty.fullName}</p>
+                            <p className="text-sm font-medium text-gray-900">{faculty.name}</p>
                             <p className="text-xs text-gray-500">{faculty.email}</p>
                           </div>
                         </div>
                         <div>
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            {faculty.assignedStudents?.length || 0} students
+                            {faculty.studentsCount || 0} students
                           </span>
+                          {faculty.id === selectedProject.facultyId && (
+                            <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                              Current
+                            </span>
+                          )}
                         </div>
                       </button>
                     ))}
@@ -415,7 +446,7 @@ const Dashboard = () => {
                   </h3>
                   <div className="mt-2">
                     <p className="text-sm text-gray-500">
-                      Student: {selectedProject.student?.fullName}
+                      Student: {selectedProject.student}
                     </p>
                     <p className="text-sm text-gray-500">
                       Proposal Title: {selectedProject.title}
