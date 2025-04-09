@@ -146,9 +146,11 @@ const useHodDashboard = () => {
         id: f._id,
         name: f.fullName,
         specialization: f.branch || 'Not specified',
+        branch: f.branch || 'Not specified',
         studentsCount: f.assignedStudents?.length || 0,
         projectsCount: f.assignedStudents?.length || 0,
-        email: f.email
+        email: f.email,
+        role: f.role
       }));
       
       // Map student data
@@ -302,6 +304,30 @@ const useHodDashboard = () => {
     }
   }, [userToken, fetchDashboardData]);
   
+  // Handle assigning a guide to a project and approving it
+  const approveProjectWithGuide = useCallback(async (projectId, guideId) => {
+    try {
+      setIsLoading(true);
+      
+      // First, assign the guide to both project and student
+      await hodService.assignGuideToProjectAndStudent(userToken, projectId, guideId);
+      
+      // Then, approve the project
+      await hodService.updateProjectStatus(userToken, projectId, 'approved');
+      
+      toast.success('Project approved and guide assigned successfully');
+      
+      // Refresh the data
+      await fetchDashboardData('all');
+      
+      return true;
+    } catch (error) {
+      toast.error('Failed to approve project and assign guide: ' + error.message);
+      setIsLoading(false);
+      return false;
+    }
+  }, [userToken, fetchDashboardData]);
+  
   // Verify authentication and connection
   const verifyAuthentication = useCallback(async () => {
     try {
@@ -398,6 +424,7 @@ const useHodDashboard = () => {
     handleAssignGuide,
     handleAssignGuideToProject,
     handleUpdateProjectStatus,
+    approveProjectWithGuide,
     handlePageChange,
     verifyAuthentication,
     getPagedData,

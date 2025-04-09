@@ -58,6 +58,6 @@ router.route('/:id')
     .put(allowRoles('admin'), updateUser)
     .delete(allowRoles('admin'), deleteUser);
 
-router.put('/:studentId/assign-guide/:guideId', allowRoles('hod'), assignGuide);
+router.put('/:studentId/assign-guide/:guideId', authorize('hod'), assignGuide);
 
 module.exports = router; 

@@ -108,8 +108,8 @@ const getStudentProjects = asyncHandler(async (req, res) => {
 // @access  Private
 const getProjectById = asyncHandler(async (req, res) => {
   const project = await Project.findById(req.params.id)
-    .populate('student', 'name email department')
-    .populate('guide', 'name email department');
+    .populate('student', 'name email department branch')
+    .populate('guide', 'name email department branch');
 
   if (!project) {
     res.status(404);
@@ -117,9 +117,19 @@ const getProjectById = asyncHandler(async (req, res) => {
   }
 
   // Check permissions
-  const isOwner = project.student._id.toString() === req.user.id;
-  const isGuide = project.guide && project.guide._id.toString() === req.user.id;
-  const isHod = req.user.role === 'hod' && project.student.department === req.user.department;
+  const isOwner = project.student && project.student._id && project.student._id.toString() === req.user.id;
+  const isGuide = project.guide && project.guide._id && project.guide._id.toString() === req.user.id;
+  
+  // HOD permission - allow if student is from their department or if project's department matches HOD's
+  const isHod = req.user.role === 'hod' && (
+    (project.student && (
+      (project.student.department && project.student.department === req.user.department) ||
+      (project.student.branch && project.student.branch === req.user.department)
+    )) || 
+    (project.department === req.user.department) ||
+    (project.department === req.user.branch)
+  );
+  
   const isAdmin = req.user.role === 'admin';
 
   if (!isOwner && !isGuide && !isHod && !isAdmin) {

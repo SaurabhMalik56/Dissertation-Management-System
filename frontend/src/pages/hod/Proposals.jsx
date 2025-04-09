@@ -15,7 +15,10 @@ const Proposals = () => {
     selectedProject,
     isModalOpen,
     setIsModalOpen,
-    setSelectedProject
+    setSelectedProject,
+    faculty,
+    handleAssignGuideToProject,
+    approveProjectWithGuide
   } = useHodDashboard();
   
   const { user } = useSelector((state) => state.auth);
@@ -24,6 +27,9 @@ const Proposals = () => {
   const [statusFilter, setStatusFilter] = useState('pending');
   const [searchTerm, setSearchTerm] = useState('');
   const [dataFetched, setDataFetched] = useState(false);
+  // New state variables for guide selection modal
+  const [approveModalOpen, setApproveModalOpen] = useState(false);
+  const [selectedGuideId, setSelectedGuideId] = useState('');
 
   // Close modal function
   const closeModal = useCallback(() => {
@@ -36,7 +42,7 @@ const Proposals = () => {
     if (!user || dataFetched) return;
     
     const loadData = async () => {
-      await fetchDashboardData('projects');
+      await fetchDashboardData('all');
       setDataFetched(true);
     };
     
@@ -87,6 +93,22 @@ const Proposals = () => {
       toast.error('Failed to reject project');
     }
   }, [rejectionReason, selectedProject, handleUpdateProjectStatus]);
+
+  // Fetch fresh faculty data when approval modal is opened
+  useEffect(() => {
+    if (approveModalOpen && selectedProject) {
+      // Refresh faculty data
+      console.log('Refreshing faculty data for guide selection...');
+      fetchDashboardData('faculty').then(() => {
+        console.log('Faculty data refreshed. Available faculty:', faculty);
+      });
+    }
+  }, [approveModalOpen, selectedProject]);
+
+  // Log faculty when it changes
+  useEffect(() => {
+    console.log('Faculty data in Proposals component:', faculty);
+  }, [faculty]);
 
   return (
     <div className="min-h-full bg-gray-100">
@@ -267,7 +289,10 @@ const Proposals = () => {
                                 <>
                                   <button
                                     key={`approve-${project._id}`}
-                                    onClick={() => handleUpdateProjectStatus(project._id, 'approved')}
+                                    onClick={() => {
+                                      setSelectedProject(project);
+                                      setApproveModalOpen(true);
+                                    }}
                                     className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700"
                                   >
                                     Approve
@@ -563,6 +588,100 @@ const Proposals = () => {
               >
                 Close
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Guide Selection Modal */}
+      {approveModalOpen && selectedProject && (
+        <div className="fixed z-10 inset-0 overflow-y-auto">
+          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+              <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+            </div>
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            <div className="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
+              <div>
+                <div className="mt-3 text-center sm:mt-5">
+                  <h3 className="text-lg leading-6 font-medium text-gray-900">
+                    Approve Project and Assign Guide
+                  </h3>
+                  <div className="mt-2">
+                    <p className="text-sm text-gray-500">
+                      Project: {selectedProject.title}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      Student: {selectedProject.student}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-5">
+                  <label htmlFor="guideSelect" className="block text-sm font-medium text-gray-700">
+                    Select Guide <span className="text-red-500">*</span>
+                  </label>
+                  <div className="mt-1">
+                    <select
+                      id="guideSelect"
+                      name="guideSelect"
+                      className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                      value={selectedGuideId}
+                      onChange={(e) => setSelectedGuideId(e.target.value)}
+                    >
+                      <option value="">Select a guide</option>
+                      {faculty && faculty.length > 0 ? (
+                        faculty
+                          .filter(f => f.role === 'faculty')
+                          .map(guide => (
+                            <option key={guide.id} value={guide.id}>
+                              {guide.name} ({guide.branch || guide.specialization || 'No department'}) - {guide.studentsCount || 0} students
+                            </option>
+                          ))
+                      ) : (
+                        <option value="" disabled>No faculty members available</option>
+                      )}
+                    </select>
+                  </div>
+                  {faculty && faculty.length === 0 && (
+                    <p className="mt-2 text-sm text-red-600">
+                      No faculty members found. Please make sure faculty are added to the system.
+                    </p>
+                  )}
+                </div>
+              </div>
+              <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3 sm:grid-flow-row-dense">
+                <button
+                  type="button"
+                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:col-start-2 sm:text-sm"
+                  onClick={async () => {
+                    if (!selectedGuideId) {
+                      toast.error('Please select a guide');
+                      return;
+                    }
+                    try {
+                      // Use the new combined function
+                      await approveProjectWithGuide(selectedProject._id, selectedGuideId);
+                      
+                      setApproveModalOpen(false);
+                      setSelectedGuideId('');
+                    } catch (error) {
+                      toast.error('Failed to approve project and assign guide');
+                    }
+                  }}
+                >
+                  Approve & Assign
+                </button>
+                <button
+                  type="button"
+                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:col-start-1 sm:text-sm"
+                  onClick={() => {
+                    setApproveModalOpen(false);
+                    setSelectedGuideId('');
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -183,6 +183,11 @@ const getAllFaculty = async (token, forceRefresh = false) => {
     cache.facultyTimestamp = now;
     console.log(`Cached ${response.data.length} faculty members`);
     
+    // Debug: Log sample faculty data to understand structure
+    if (response.data.length > 0) {
+      console.log('Sample faculty data:', response.data[0]);
+    }
+    
     return response.data;
   } catch (error) {
     console.error('Error fetching faculty:', error);
@@ -291,6 +296,63 @@ const assignGuideToStudent = async (token, studentId, guideId) => {
     return response.data;
   } catch (error) {
     throw new Error(error.response?.data?.message || 'Failed to assign guide to student');
+  }
+};
+
+// Assign a guide to both project and student in one operation
+const assignGuideToProjectAndStudent = async (token, projectId, guideId) => {
+  try {
+    // First get the project to get the student ID
+    const projectResponse = await axios.get(
+      `${API_URL}/projects/${projectId}`,
+      createAuthHeader(token)
+    );
+    
+    console.log('Project data received:', projectResponse.data);
+    
+    // Handle different ways the student ID might be stored
+    let studentId = null;
+    if (projectResponse.data.student) {
+      if (typeof projectResponse.data.student === 'object' && projectResponse.data.student._id) {
+        studentId = projectResponse.data.student._id;
+      } else if (typeof projectResponse.data.student === 'string') {
+        studentId = projectResponse.data.student;
+      }
+    }
+    
+    if (!studentId) {
+      throw new Error('No student associated with this project');
+    }
+    
+    console.log('Found student ID for project:', studentId);
+    
+    // Now do both assignments in parallel
+    const results = await Promise.all([
+      // Assign guide to project
+      axios.put(
+        `${API_URL}/projects/${projectId}`,
+        { guide: guideId },
+        createAuthHeader(token)
+      ),
+      
+      // Assign guide to student
+      axios.put(
+        `${API_URL}/users/${studentId}/assign-guide/${guideId}`,
+        {},
+        createAuthHeader(token)
+      )
+    ]);
+    
+    console.log('Assignment results:', results.map(r => r.status));
+    
+    // Invalidate all relevant caches
+    cache.departmentProjects = null;
+    cache.departmentStudents = null;
+    
+    return { success: true, message: 'Guide assigned to both project and student' };
+  } catch (error) {
+    console.error('Error in assignGuideToProjectAndStudent:', error);
+    throw new Error(error.response?.data?.message || 'Failed to assign guide to project and student');
   }
 };
 
@@ -475,6 +537,7 @@ const hodService = {
   getDepartmentStudents,
   assignGuideToProject,
   assignGuideToStudent,
+  assignGuideToProjectAndStudent,
   updateProjectStatus,
   getProjectStats,
   getStudentStats,
