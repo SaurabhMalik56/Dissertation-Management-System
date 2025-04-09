@@ -477,7 +477,7 @@ const updateProjectStatus = asyncHandler(async (req, res) => {
   const student = await User.findById(project.student);
   
   if (req.user.role !== 'admin' && 
-     (req.user.role !== 'hod' || student.department !== req.user.department)) {
+     (req.user.role !== 'hod' || (student.department !== req.user.department && student.branch !== req.user.department))) {
     res.status(403);
     throw new Error('Not authorized - only department HOD can update project status');
   }
