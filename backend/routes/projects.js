@@ -90,7 +90,7 @@ router.put('/:id', updateProject);
 router.delete('/:id', deleteProject);
 
 // PATCH /api/projects/:id/status - Update project status (hod only)
-router.patch('/:id/status', updateProjectStatus);
+router.patch('/:id/status', authorize('hod'), updateProjectStatus);
 
 // GET /api/projects/:id/progress - Get project progress updates
 router.get('/:id/progress', getProjectProgress);
