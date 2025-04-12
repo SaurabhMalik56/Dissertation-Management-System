@@ -40,6 +40,7 @@ const Dashboard = () => {
   const [assigningGuide, setAssigningGuide] = useState(false);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [selectedGuideId, setSelectedGuideId] = useState('');
 
   useEffect(() => {
     if (!user) return;
@@ -47,8 +48,10 @@ const Dashboard = () => {
     const loadData = async () => {
       try {
         console.log('Loading fresh dashboard data...');
-        await fetchDashboardData('all');
-        console.log('Dashboard data loaded successfully');
+        if (projects.length === 0 || pendingProjects.length === 0) {
+          await fetchDashboardData('all');
+          console.log('Dashboard data loaded successfully');
+        }
       } catch (error) {
         console.error('Error loading dashboard data:', error);
         toast.error('Failed to load dashboard data');
@@ -56,7 +59,7 @@ const Dashboard = () => {
     };
     
     loadData();
-  }, [user, fetchDashboardData]);
+  }, [user, projects.length, pendingProjects.length]);
 
   const handleLogout = () => {
     dispatch(logout());
@@ -83,6 +86,30 @@ const Dashboard = () => {
       setSelectedProject(null);
     } catch (error) {
       toast.error('Failed to reject project');
+    }
+  };
+
+  const handleGuideAssignment = async (projectId, guideId) => {
+    try {
+      const project = projects.find(p => p._id === projectId);
+      const isReassignment = project && project.facultyId;
+      
+      await handleAssignGuideToProject(projectId, guideId);
+      
+      if (isReassignment) {
+        const newGuide = departmentFaculty.find(f => f.id === guideId);
+        const previousGuide = departmentFaculty.find(f => f.id === project.facultyId);
+        toast.success(`Guide reassigned from ${previousGuide?.name || 'previous guide'} to ${newGuide?.name || 'new guide'}`);
+      } else {
+        const newGuide = departmentFaculty.find(f => f.id === guideId);
+        toast.success(`Guide ${newGuide?.name || 'new guide'} assigned successfully!`);
+      }
+      
+      setAssigningGuide(false);
+      setSelectedProject(null);
+      setSelectedGuideId('');
+    } catch (error) {
+      toast.error('Failed to assign guide: ' + (error.message || 'Unknown error'));
     }
   };
 
@@ -319,21 +346,25 @@ const Dashboard = () => {
                                 onClick={() => {
                                   setSelectedProject(project);
                                   setAssigningGuide(true);
+                                  setSelectedGuideId('');
                                 }}
-                                className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
+                                className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 transition-colors duration-150"
                               >
                                 Assign Guide
                               </button>
                             ) : (
-                              <button
-                                onClick={() => {
-                                  setSelectedProject(project);
-                                  setAssigningGuide(true);
-                                }}
-                                className="inline-flex items-center px-3 py-1 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-                              >
-                                Reassign Guide
-                              </button>
+                              <div className="flex justify-center">
+                                <button
+                                  onClick={() => {
+                                    setSelectedProject(project);
+                                    setAssigningGuide(true);
+                                    setSelectedGuideId(project.facultyId);
+                                  }}
+                                  className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 transition-colors duration-150"
+                                >
+                                  Reassign Guide
+                                </button>
+                              </div>
                             )}
                           </td>
                         </tr>
@@ -363,10 +394,10 @@ const Dashboard = () => {
                   </h3>
                   <div className="mt-2">
                     <p className="text-sm text-gray-500">
-                      Project: {selectedProject.title}
+                      Project: <span className="font-medium">{selectedProject.title}</span>
                     </p>
                     <p className="text-sm text-gray-500">
-                      Student: {selectedProject.student || "Unknown Student"}
+                      Student: <span className="font-medium">{selectedProject.student || "Unknown Student"}</span>
                     </p>
                     {selectedProject.facultyId && (
                       <div className="mt-2 p-2 bg-yellow-50 rounded-md">
@@ -381,121 +412,53 @@ const Dashboard = () => {
                   </div>
                 </div>
                 <div className="mt-5">
-                  <div className="grid grid-cols-1 gap-4 max-h-60 overflow-y-auto">
-                    {departmentFaculty?.map((faculty) => (
-                      <button
-                        key={faculty.id}
-                        onClick={() => {
-                          handleAssignGuideToProject(selectedProject._id, faculty.id);
-                          setAssigningGuide(false);
-                          setSelectedProject(null);
-                        }}
-                        disabled={faculty.id === selectedProject.facultyId}
-                        className={`flex items-center justify-between p-3 border rounded-lg 
-                          ${faculty.id === selectedProject.facultyId 
-                            ? 'border-gray-200 bg-gray-100 cursor-not-allowed' 
-                            : 'border-gray-300 hover:bg-gray-50'}`}
-                      >
-                        <div className="flex items-center">
-                          <div className="bg-indigo-100 rounded-full w-10 h-10 flex items-center justify-center text-indigo-500 mr-3">
-                            {faculty.name?.charAt(0) || 'F'}
-                          </div>
-                          <div className="text-left">
-                            <p className="text-sm font-medium text-gray-900">{faculty.name}</p>
-                            <p className="text-xs text-gray-500">{faculty.email}</p>
-                          </div>
-                        </div>
-                        <div>
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            {faculty.studentsCount || 0} students
-                          </span>
-                          {faculty.id === selectedProject.facultyId && (
-                            <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                              Current
-                            </span>
-                          )}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
+                  {departmentFaculty && departmentFaculty.length > 0 ? (
+                    <div>
+                      <div className="mb-3 text-sm text-gray-500 flex justify-between items-center">
+                        <span>Select a faculty member to assign as guide:</span>
+                        <span className="text-xs text-indigo-600">Sorted by current workload</span>
+                      </div>
+                      <div className="grid grid-cols-1 gap-4 max-h-60 overflow-y-auto pr-1">
+                        {departmentFaculty.map((faculty) => {
+                          const isCurrentGuide = faculty.id === selectedProject.facultyId;
+                          return (
+                            <button
+                              key={faculty.id}
+                              onClick={() => handleGuideAssignment(selectedProject._id, faculty.id)}
+                              disabled={isCurrentGuide}
+                              className={`flex items-center justify-between p-3 border rounded-lg transition-colors duration-150
+                                ${isCurrentGuide 
+                                  ? 'border-indigo-300 bg-indigo-50 cursor-not-allowed' 
+                                  : 'border-gray-300 hover:bg-indigo-50'}`}
+                            >
+                              <div className="flex items-center">
+                                <div className={`rounded-full w-10 h-10 flex items-center justify-center mr-3 
+                                  ${isCurrentGuide 
+                                    ? 'bg-indigo-200 text-indigo-700' 
+                                    : 'bg-indigo-100 text-indigo-500'}`}>
+                                  {faculty.name?.charAt(0) || 'F'}
+                                </div>
+                                <div className="text-left">
+                                  <p className={`text-sm font-medium ${isCurrentGuide ? 'text-indigo-700' : 'text-gray-900'}`}>
+                                    {faculty.name}
+                                  </p>
+                                  <p className="text-xs text-gray-500">{faculty.email}</p>
+                                  {faculty.branch && (
+                                    <p className="text-xs text-gray-400">Branch: {faculty.branch}</p>
+                                  )}
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-6 text-gray-500">
+                      No faculty members available for assignment
+                    </div>
+                  )}
                 </div>
-              </div>
-              <div className="mt-5 sm:mt-6">
-                <button
-                  type="button"
-                  className="inline-flex justify-center w-full rounded-md border border-transparent shadow-sm px-4 py-2 bg-gray-600 text-base font-medium text-white hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 sm:text-sm"
-                  onClick={() => {
-                    setAssigningGuide(false);
-                    setSelectedProject(null);
-                  }}
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Rejection Reason Modal */}
-      {rejectModalOpen && selectedProject && (
-        <div className="fixed z-10 inset-0 overflow-y-auto">
-          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
-              <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
-            </div>
-            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-            <div className="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
-              <div>
-                <div className="mt-3 text-center sm:mt-5">
-                  <h3 className="text-lg leading-6 font-medium text-gray-900">
-                    Reject Proposal
-                  </h3>
-                  <div className="mt-2">
-                    <p className="text-sm text-gray-500">
-                      Student: {selectedProject.student || "Unknown Student"}
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      Proposal Title: {selectedProject.title}
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-5">
-                  <label htmlFor="rejectionReason" className="block text-sm font-medium text-gray-700">
-                    Reason for Rejection <span className="text-red-500">*</span>
-                  </label>
-                  <div className="mt-1">
-                    <textarea
-                      id="rejectionReason"
-                      name="rejectionReason"
-                      rows={4}
-                      className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
-                      placeholder="Project idea is too broad; please refine your scope."
-                      value={rejectionReason}
-                      onChange={(e) => setRejectionReason(e.target.value)}
-                    />
-                  </div>
-                </div>
-              </div>
-              <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3 sm:grid-flow-row-dense">
-                <button
-                  type="button"
-                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:col-start-2 sm:text-sm"
-                  onClick={submitRejection}
-                >
-                  Submit Rejection
-                </button>
-                <button
-                  type="button"
-                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:col-start-1 sm:text-sm"
-                  onClick={() => {
-                    setRejectModalOpen(false);
-                    setRejectionReason('');
-                    setSelectedProject(null);
-                  }}
-                >
-                  Cancel
-                </button>
               </div>
             </div>
           </div>
@@ -505,4 +468,4 @@ const Dashboard = () => {
   );
 };
 
-export default Dashboard; 
+export default Dashboard;

@@ -40,9 +40,10 @@ const useHodDashboard = () => {
     [projects]
   );
   
+  // Changed to return all faculty members, sorted by those with fewer assigned students first
   const departmentFaculty = useMemo(() => 
-    faculty.filter(f => f.specialization === user?.department),
-    [faculty, user?.department]
+    faculty.sort((a, b) => (a.studentsCount || 0) - (b.studentsCount || 0)),
+    [faculty]
   );
   
   const pagedData = useMemo(() => ({
