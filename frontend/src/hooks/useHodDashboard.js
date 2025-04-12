@@ -141,6 +141,38 @@ const useHodDashboard = () => {
         }
       }
       
+      // Fetch complete student data for projects if needed
+      const projectsWithStringStudentIds = projectsData.filter(
+        p => p.student && typeof p.student === 'string' && 
+        !studentsData.some(s => s._id === p.student)
+      );
+      
+      // If we have projects with string student IDs but no corresponding student objects,
+      // fetch those student details
+      if (projectsWithStringStudentIds.length > 0) {
+        try {
+          console.log(`Fetching details for ${projectsWithStringStudentIds.length} additional students`);
+          const studentIds = projectsWithStringStudentIds.map(p => p.student);
+          const uniqueIds = [...new Set(studentIds)];
+          
+          // Fetch student details in parallel
+          const additionalStudentRequests = uniqueIds.map(id => 
+            hodService.getStudentDetails(userToken, id)
+          );
+          
+          const additionalStudents = await Promise.all(additionalStudentRequests);
+          const validAdditionalStudents = additionalStudents.filter(s => s && s._id);
+          
+          // Add fetched students to studentsData
+          studentsData = [...studentsData, ...validAdditionalStudents];
+          
+          console.log(`Added ${validAdditionalStudents.length} student details to dashboard data`);
+        } catch (error) {
+          console.warn('Error fetching additional student details:', error);
+          // Continue without additional details
+        }
+      }
+      
       // Map faculty data
       const mappedFaculty = facultyData.map(f => ({
         id: f._id,
@@ -183,6 +215,15 @@ const useHodDashboard = () => {
             };
           } else if (typeof p.student === 'string') {
             studentInfo.id = p.student;
+            // Find the student details in the studentsData array using ID matching
+            const studentData = studentsData.find(s => s._id === p.student);
+            if (studentData) {
+              studentInfo.name = studentData.fullName || studentData.name || 'Unknown';
+              studentInfo.email = studentData.email || '';
+              console.log(`Found student data for ID ${p.student}: ${studentInfo.name}`);
+            } else {
+              console.log(`Could not find student data for ID ${p.student}`);
+            }
           }
         }
         

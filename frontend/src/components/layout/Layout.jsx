@@ -143,15 +143,28 @@ const Layout = () => {
               <div className="text-xs text-gray-500 capitalize">{user?.role || 'Role'}</div>
             </div>
           </div>
-          <button
-            className="w-full flex items-center p-2 text-gray-600 rounded-lg hover:bg-red-50 hover:text-red-700"
-            onClick={onLogout}
-          >
-            <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
-            </svg>
-            <span>Logout</span>
-          </button>
+          <div className="cursor-pointer">
+            <button
+              type="button"
+              className="w-full flex items-center justify-center p-3 text-white bg-red-500 font-medium rounded-lg hover:bg-red-600 active:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors duration-200"
+              onClick={() => {
+                // Ensure event is handled and not propagated
+                try {
+                  onLogout();
+                } catch (error) {
+                  console.error('Logout error:', error);
+                  // Fallback direct navigation if dispatch fails
+                  navigate('/login');
+                }
+              }}
+              aria-label="Sign out"
+            >
+              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+              </svg>
+              <span>Sign Out</span>
+            </button>
+          </div>
         </div>
       </div>
 

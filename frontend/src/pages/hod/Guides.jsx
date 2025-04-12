@@ -98,7 +98,6 @@ const Guides = () => {
                           </td>
                           <td className="px-6 py-4">
                             <div className="text-sm text-gray-900">{project.title}</div>
-                            <div className="text-xs text-gray-500 mt-1 line-clamp-2">{project.description}</div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             {project.guide ? (

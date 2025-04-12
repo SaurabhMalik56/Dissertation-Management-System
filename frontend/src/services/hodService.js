@@ -507,25 +507,22 @@ const updateProfile = async (token, profileData) => {
   }
 };
 
-// Update the getStudentDetails function
-const getStudentDetails = async (studentId) => {
+// Get details for a specific student
+const getStudentDetails = async (token, studentId) => {
   try {
-    console.log('Fetching student details from backend for ID:', studentId);
-    const response = await axios.get(`${API_URL}/hod/students/${studentId}`, {
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
-      }
-    });
-    
-    console.log('Received student details response:', response.data);
-    
-    if (response.data) {
-      return response.data;
-    } else {
-      throw new Error('No student details received from server');
+    if (!studentId) {
+      throw new Error('Student ID is required');
     }
+    
+    console.log(`Fetching details for student: ${studentId}`);
+    const response = await axios.get(
+      `${API_URL}/users/${studentId}`,
+      createAuthHeader(token)
+    );
+    
+    return response.data;
   } catch (error) {
-    console.error('Error fetching student details:', error);
+    console.error(`Error fetching student details for ID ${studentId}:`, error);
     throw error;
   }
 };

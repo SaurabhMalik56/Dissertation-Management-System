@@ -265,7 +265,6 @@ const Proposals = () => {
                             >
                               {project.title}
                             </button>
-                            <div className="text-xs text-gray-500 mt-1 line-clamp-1">{project.description}</div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-sm text-gray-900">{project.department}</div>

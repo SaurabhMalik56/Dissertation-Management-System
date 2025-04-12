@@ -197,11 +197,13 @@ const Dashboard = () => {
                             <div className="flex items-center">
                               <div className="ml-4">
                                 <div className="text-sm font-medium text-gray-900">
-                                  {project.student?.fullName}
+                                  {project.student || "Unknown Student"}
                                 </div>
-                                <div className="text-sm text-gray-500">
-                                  ID: {project.student?._id?.substring(0, 8)}
-                                </div>
+                                {project.studentEmail && (
+                                  <div className="text-sm text-gray-500">
+                                    {project.studentEmail}
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </td>
@@ -282,8 +284,13 @@ const Dashboard = () => {
                             <div className="flex items-center">
                               <div className="ml-4">
                                 <div className="text-sm font-medium text-gray-900">
-                                  {project.student}
+                                  {project.student || "Unknown Student"}
                                 </div>
+                                {project.studentEmail && (
+                                  <div className="text-sm text-gray-500">
+                                    {project.studentEmail}
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </td>
@@ -359,7 +366,7 @@ const Dashboard = () => {
                       Project: {selectedProject.title}
                     </p>
                     <p className="text-sm text-gray-500">
-                      Student: {selectedProject.student}
+                      Student: {selectedProject.student || "Unknown Student"}
                     </p>
                     {selectedProject.facultyId && (
                       <div className="mt-2 p-2 bg-yellow-50 rounded-md">
@@ -446,7 +453,7 @@ const Dashboard = () => {
                   </h3>
                   <div className="mt-2">
                     <p className="text-sm text-gray-500">
-                      Student: {selectedProject.student}
+                      Student: {selectedProject.student || "Unknown Student"}
                     </p>
                     <p className="text-sm text-gray-500">
                       Proposal Title: {selectedProject.title}
