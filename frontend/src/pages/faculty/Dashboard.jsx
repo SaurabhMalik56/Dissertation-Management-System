@@ -1,6 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
-import axios from 'axios';
+import { toast } from 'react-toastify';
+import { 
+  FaUser, 
+  FaFileAlt, 
+  FaCalendarAlt, 
+  FaBell,
+  FaSync 
+} from 'react-icons/fa';
+import facultyService from '../../services/facultyService';
+import ProfileSection from '../../components/faculty/ProfileSection';
+import AssignedStudents from '../../components/faculty/AssignedStudents';
+import MeetingsManager from '../../components/faculty/MeetingsManager';
 
 const Dashboard = () => {
   const { user } = useSelector((state) => state.auth);
@@ -315,65 +326,16 @@ const Dashboard = () => {
               
               {/* Students Tab */}
               {activeTab === 'students' && (
-                <div>
-                  <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-xl font-semibold text-gray-800">Assigned Students</h2>
-                    <input 
-                      type="text" 
-                      placeholder="Search students..." 
-                      className="form-input w-full max-w-xs"
-                    />
-                  </div>
-                  
-                  <div className="table-container">
-                    <table className="table">
-                      <thead>
-                        <tr>
-                          <th>Name</th>
-                          <th>Roll No</th>
-                          <th>Project</th>
-                          <th>Progress</th>
-                          <th>Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {students.map(student => (
-                          <tr key={student.id}>
-                            <td className="font-medium text-gray-800">{student.name}</td>
-                            <td>{student.rollNo}</td>
-                            <td>{student.project}</td>
-                            <td>
-                              <div className="flex items-center">
-                                <div className="w-32 bg-gray-200 rounded-full h-2 mr-2">
-                                  <div 
-                                    className={`h-2 rounded-full ${
-                                      student.progress < 30 ? 'bg-red-500' : 
-                                      student.progress < 70 ? 'bg-yellow-500' : 
-                                      'bg-green-500'
-                                    }`}
-                                    style={{ width: `${student.progress}%` }}
-                                  ></div>
-                                </div>
-                                <span className="text-sm">{student.progress}%</span>
-                              </div>
-                            </td>
-                            <td>
-                              <button className="text-indigo-600 hover:text-indigo-900 mr-2">
-                                View
-                              </button>
-                              <button className="text-green-600 hover:text-green-900 mr-2">
-                                Update
-                              </button>
-                              <button className="text-blue-600 hover:text-blue-900">
-                                Meet
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+                <AssignedStudents
+                  onScheduleMeeting={(studentId) => {
+                    console.log('Schedule meeting with student:', studentId);
+                    // You can add logic here to open a modal or navigate to a meeting form
+                  }}
+                  onUpdateProgress={(studentId, projectId) => {
+                    console.log('Update progress for student:', studentId, 'project:', projectId);
+                    // You can add logic here to open a progress update form
+                  }}
+                />
               )}
               
               {/* Projects Tab */}

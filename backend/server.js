@@ -35,6 +35,7 @@ app.use('/api/projects', require('./routes/projects'));
 app.use('/api/meetings', require('./routes/meetings'));
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/students', require('./routes/students'));
+app.use('/api/faculty', require('./routes/faculty'));
 
 // Health check route
 app.get('/api/health', (req, res) => {

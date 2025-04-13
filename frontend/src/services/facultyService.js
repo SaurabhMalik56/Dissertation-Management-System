@@ -144,8 +144,10 @@ const getAssignedStudents = async (token, forceRefresh = false) => {
     }
     
     try {
-      // Try faculty-specific endpoint first
+      console.log('Fetching assigned students from API');
+      // Try faculty-specific endpoint
       const response = await axios.get(`${API_URL}/faculty/students`);
+      console.log('API response for assigned students:', response.data);
       
       // Process and cache the result
       cache.assignedStudents = response.data;
@@ -157,7 +159,13 @@ const getAssignedStudents = async (token, forceRefresh = false) => {
       
       // If endpoint not found, use mock data
       if (error.response && error.response.status === 404) {
-        console.log('Faculty API endpoint not found. Using mock student data.');
+        console.log('Faculty API endpoint not found or no students assigned. Using mock student data.');
+        
+        // If the error is that no students were found for this faculty
+        if (error.response.data && error.response.data.message) {
+          console.log('Server message:', error.response.data.message);
+        }
+        
         cache.assignedStudents = mockData.students;
         cache.assignedStudentsTimestamp = Date.now();
         return mockData.students;
