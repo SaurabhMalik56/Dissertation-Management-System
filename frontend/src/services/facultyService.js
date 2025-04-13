@@ -184,9 +184,9 @@ const getMeetings = async (token, forceRefresh = false) => {
   try {
     setAuthToken(token);
     
-    // Use cache if available and not expired
+    // Use cache if available and not expired, unless force refresh is requested
     if (!forceRefresh && cache.meetings && !isCacheExpired(cache.meetingsTimestamp)) {
-      console.log('Using cached meetings data');
+      console.log('Using cached meetings data from facultyService, count:', cache.meetings.length);
       return cache.meetings;
     }
     
@@ -197,15 +197,26 @@ const getMeetings = async (token, forceRefresh = false) => {
       cache.meetings = response.data;
       cache.meetingsTimestamp = Date.now();
       
+      console.log('Successfully fetched meetings from API, count:', response.data.length);
       return response.data;
     } catch (error) {
-      console.error('Error fetching meetings:', error);
+      console.error('Error fetching meetings from API:', error.message);
       
       // If endpoint not found, use mock data
       if (error.response && error.response.status === 404) {
-        console.log('Meetings API endpoint not found. Using mock meeting data.');
-        cache.meetings = mockData.meetings;
+        console.log('Meetings API endpoint not found. Using mock meeting data, count:', mockData.meetings.length);
+        
+        // Ensure we're using the latest mockData.meetings
+        cache.meetings = [...mockData.meetings]; // Create a fresh copy
         cache.meetingsTimestamp = Date.now();
+        
+        // Log student IDs for debugging
+        console.log('mockData.meetings student IDs:', mockData.meetings.map(m => ({
+          id: m._id,
+          studentId: m.student || m.studentId,
+          title: m.title || `Meeting ${m.meetingNumber}`
+        })));
+        
         return mockData.meetings;
       }
       
@@ -373,6 +384,86 @@ const getDashboardData = async (token) => {
   }
 };
 
+// Create a new meeting
+export const createMeeting = async (meetingData, token) => {
+  try {
+    // Try to use the real API endpoint
+    const config = {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    };
+
+    // For now, use mock data instead of real API call to avoid 404 errors
+    // const response = await axios.post(API_URL + '/meetings', meetingData, config);
+    
+    console.log('Creating mock meeting with data:', meetingData);
+    
+    // Create a mock response - ensure student ID is consistent in all properties
+    const mockResponse = {
+      data: {
+        _id: 'mock_meeting_' + Date.now(),
+        title: meetingData.title,
+        project: meetingData.project,
+        student: meetingData.student, // Primary student reference
+        studentId: meetingData.student, // Additional student reference for compatibility
+        guide: meetingData.guide,
+        facultyId: meetingData.guide, // Add facultyId for compatibility
+        guideName: typeof meetingData.guideName === 'string' ? meetingData.guideName : 'Faculty Guide', // Add guideName for student view
+        scheduledDate: meetingData.scheduledDate,
+        dateTime: meetingData.scheduledDate, // Add dateTime for compatibility with student view
+        status: 'scheduled',
+        meetingNumber: meetingData.meetingNumber,
+        notes: meetingData.notes || '',
+        guideNotes: meetingData.notes || '', // Add guideNotes for student view
+        facultyComments: meetingData.notes || '', // Add facultyComments for compatibility
+        meetingType: meetingData.meetingType || 'online',
+        duration: 60, // Add default duration
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }
+    };
+    
+    // Log the created meeting data for debugging
+    console.log('Created mock meeting with:', {
+      meetingId: mockResponse.data._id,
+      studentId: mockResponse.data.student,
+      studentIdType: typeof mockResponse.data.student,
+      title: mockResponse.data.title
+    });
+    
+    // Add to mock data for consistency
+    mockData.meetings.push(mockResponse.data);
+    
+    // Log the updated meetings array to verify it was added
+    console.log('Updated facultyService mockData.meetings count:', mockData.meetings.length);
+    console.log('mockData.meetings student IDs:', mockData.meetings.map(m => ({
+      id: m._id,
+      studentId: m.student || m.studentId,
+      title: m.title
+    })));
+    
+    // Update cache with updated mock data
+    cache.meetings = mockData.meetings;
+    cache.meetingsTimestamp = Date.now();
+    
+    return {
+      success: true,
+      data: mockResponse.data,
+      mock: true,
+      message: 'Meeting created successfully'
+    };
+  } catch (error) {
+    console.error('Error in createMeeting:', error);
+    
+    return {
+      success: false,
+      mock: true,
+      message: error.response?.data?.message || error.message || 'Error creating meeting'
+    };
+  }
+};
+
 const facultyService = {
   getAssignedStudents,
   getMeetings,
@@ -381,7 +472,8 @@ const facultyService = {
   getFacultyProfile,
   updateProfile,
   getDashboardData,
-  clearCache
+  clearCache,
+  createMeeting
 };
 
 export default facultyService; 

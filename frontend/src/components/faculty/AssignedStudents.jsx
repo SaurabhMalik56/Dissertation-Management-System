@@ -144,14 +144,18 @@ const AssignedStudents = ({ onScheduleMeeting, onUpdateProgress }) => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredStudents.map((student) => (
-                <tr key={student._id}>
+                <tr 
+                  key={student._id} 
+                  data-student-id={student._id}
+                  data-project-id={student.project?._id}
+                >
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <div className="flex-shrink-0 h-10 w-10 bg-indigo-100 rounded-full flex items-center justify-center">
                         <FaUserGraduate className="h-5 w-5 text-indigo-600" />
                       </div>
                       <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900">{student.fullName}</div>
+                        <div className="text-sm font-medium text-gray-900 student-name">{student.fullName}</div>
                         <div className="text-xs text-gray-500">ID: {student._id}</div>
                         <div className="text-xs text-gray-500">{student.email}</div>
                       </div>
@@ -178,8 +182,10 @@ const AssignedStudents = ({ onScheduleMeeting, onUpdateProgress }) => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <button
-                      onClick={() => onScheduleMeeting && onScheduleMeeting(student._id)}
+                      onClick={() => onScheduleMeeting && onScheduleMeeting(student, student.project?._id)}
                       className="text-indigo-600 hover:text-indigo-900 mr-4"
+                      disabled={!student.project}
+                      title={!student.project ? "Student has no project assigned" : "Schedule a meeting"}
                     >
                       <FaCalendarAlt className="inline-block mr-1" />
                       Schedule Meeting

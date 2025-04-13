@@ -6,12 +6,58 @@ import {
   FaFileAlt, 
   FaCalendarAlt, 
   FaBell,
-  FaSync 
+  FaSync,
+  FaTimes
 } from 'react-icons/fa';
+import axios from 'axios';
 import facultyService from '../../services/facultyService';
 import ProfileSection from '../../components/faculty/ProfileSection';
 import AssignedStudents from '../../components/faculty/AssignedStudents';
 import MeetingsManager from '../../components/faculty/MeetingsManager';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+// Shared meeting store - this helps ensure meetings are accessible across services
+// In a production app, this would be replaced with a centralized state management system or backend API
+window.SHARED_MEETINGS_STORE = window.SHARED_MEETINGS_STORE || {
+  meetings: [],
+  addMeeting: function(meeting) {
+    this.meetings.push(meeting);
+    console.log('Added meeting to shared store:', meeting);
+    console.log('Total meetings in shared store:', this.meetings.length);
+    
+    // Dispatch a custom event that other components can listen for
+    const meetingEvent = new CustomEvent('new-meeting-created', { 
+      detail: { meeting }
+    });
+    window.dispatchEvent(meetingEvent);
+    
+    // Store in localStorage as a fallback
+    try {
+      const existingMeetings = JSON.parse(localStorage.getItem('shared_meetings') || '[]');
+      existingMeetings.push(meeting);
+      localStorage.setItem('shared_meetings', JSON.stringify(existingMeetings));
+    } catch (error) {
+      console.error('Failed to store meeting in localStorage:', error);
+    }
+  },
+  getMeetings: function() {
+    // Try to load from localStorage if the store is empty
+    if (this.meetings.length === 0) {
+      try {
+        const storedMeetings = JSON.parse(localStorage.getItem('shared_meetings') || '[]');
+        this.meetings = storedMeetings;
+      } catch (error) {
+        console.error('Failed to load meetings from localStorage:', error);
+      }
+    }
+    return this.meetings;
+  },
+  clear: function() {
+    this.meetings = [];
+    localStorage.removeItem('shared_meetings');
+  }
+};
 
 const Dashboard = () => {
   const { user } = useSelector((state) => state.auth);
@@ -27,6 +73,21 @@ const Dashboard = () => {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  
+  // Meeting Modal State
+  const [meetingModal, setMeetingModal] = useState({
+    isOpen: false,
+    studentId: null,
+    studentName: '',
+    projectId: null,
+    formData: {
+      meetingNumber: '1',
+      date: '',
+      time: '',
+      guideNotes: '',
+      meetingType: 'online'
+    }
+  });
 
   useEffect(() => {
     // Simulate API call to fetch faculty data
@@ -77,6 +138,16 @@ const Dashboard = () => {
     fetchData();
   }, [user]);
 
+  useEffect(() => {
+    if (user) {
+      console.log('User info in Dashboard:', user);
+      // Check if user ID is available
+      if (!user._id && !user.id) {
+        console.warn('User ID is missing in the Redux store');
+      }
+    }
+  }, [user]);
+
   const formatDate = (dateString) => {
     const options = { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
     return new Date(dateString).toLocaleDateString(undefined, options);
@@ -95,9 +166,192 @@ const Dashboard = () => {
     }
   };
 
-  const handleScheduleMeeting = (studentId) => {
-    // Handle scheduling a meeting - in a real app this would open a modal or navigate to a form
-    console.log(`Schedule meeting with student ID: ${studentId}`);
+  const handleScheduleMeeting = async (studentId) => {
+    try {
+      console.log('Scheduling meeting for student ID:', studentId);
+      
+      // Instead of trying to find the student in the local state,
+      // fetch the student details directly from the API
+      let studentInfo = null;
+      
+      // Check if we already have the student data in our API response
+      // First check the AssignedStudents component data (from API)
+      const apiStudents = document.querySelectorAll('tr[data-student-id]');
+      for (const element of apiStudents) {
+        if (element.getAttribute('data-student-id') === studentId) {
+          const nameElement = element.querySelector('.student-name');
+          if (nameElement) {
+            studentInfo = {
+              _id: studentId,
+              fullName: nameElement.textContent
+            };
+            break;
+          }
+        }
+      }
+      
+      // If not found in API response, check our mock data
+      if (!studentInfo) {
+        const mockStudent = students.find(s => s.id === studentId || s._id === studentId);
+        if (mockStudent) {
+          studentInfo = {
+            _id: studentId,
+            fullName: mockStudent.fullName || mockStudent.name
+          };
+        }
+      }
+      
+      // If still not found, just use the ID
+      if (!studentInfo) {
+        studentInfo = {
+          _id: studentId,
+          fullName: 'Student'
+        };
+      }
+      
+      // Open the meeting modal with the available student information
+      setMeetingModal({
+        isOpen: true,
+        studentId: studentId,
+        studentName: studentInfo.fullName,
+        projectId: null,
+        formData: {
+          meetingNumber: '1',
+          date: new Date().toISOString().split('T')[0], // Today's date as default
+          time: '10:00',
+          guideNotes: '',
+          meetingType: 'online'
+        }
+      });
+      
+    } catch (error) {
+      console.error('Error setting up meeting:', error);
+      toast.error('Could not set up meeting. Please try again.');
+    }
+  };
+  
+  const handleMeetingInputChange = (e) => {
+    const { name, value } = e.target;
+    setMeetingModal(prev => ({
+      ...prev,
+      formData: {
+        ...prev.formData,
+        [name]: value
+      }
+    }));
+  };
+  
+  const getUserId = () => {
+    // First try _id which is commonly used in MongoDB
+    if (user && user._id) {
+      return user._id;
+    }
+    // Then try id as fallback
+    if (user && user.id) {
+      return user.id;
+    }
+    // If still no id, generate a temporary one (not ideal but prevents crashes)
+    console.error('No user ID found in Redux store');
+    return 'temp_' + Date.now();
+  };
+  
+  const handleSubmitMeeting = async (e) => {
+    e.preventDefault();
+    
+    try {
+      const { meetingNumber, date, time, guideNotes, meetingType } = meetingModal.formData;
+      
+      // Format date and time for API
+      const meetingDateTime = `${date}T${time}:00`;
+      
+      // Get faculty ID
+      const facultyId = getUserId();
+      const facultyName = user?.fullName || 'Faculty Guide';
+      
+      // Create a mock project ID if one is not provided
+      const projectId = meetingModal.projectId || ('mock_project_' + Date.now());
+      
+      // Prepare meeting data
+      const meetingData = {
+        title: `Meeting ${meetingNumber} with ${meetingModal.studentName}`,
+        project: projectId,
+        student: meetingModal.studentId,
+        studentId: meetingModal.studentId, // Ensure studentId is explicitly set
+        guide: facultyId,
+        guideName: facultyName, // Include faculty name
+        facultyId: facultyId, // Ensure facultyId is set
+        scheduledDate: meetingDateTime,
+        dateTime: meetingDateTime, // Include dateTime for compatibility
+        status: 'scheduled',
+        meetingNumber: parseInt(meetingNumber),
+        notes: guideNotes || '',
+        guideNotes: guideNotes || '', // For compatibility
+        meetingType: meetingType || 'online',
+        duration: 45 // Default duration in minutes
+      };
+      
+      console.log('Creating meeting with data:', meetingData);
+      
+      // Use the faculty service to create the meeting
+      const result = await facultyService.createMeeting(meetingData, user.token);
+      
+      // Handle the result
+      if (result.success) {
+        // Add to shared meetings store to ensure it's available to student components
+        window.SHARED_MEETINGS_STORE.addMeeting(result.data);
+        
+        // Close the modal
+        setMeetingModal(prev => ({ ...prev, isOpen: false }));
+        
+        // Show success message
+        toast.success(
+          <div>
+            <div>Meeting scheduled successfully</div>
+            <div className="text-xs mt-1">Note: Students will need to refresh their meetings page to see this.</div>
+          </div>,
+          { autoClose: 5000 }
+        );
+        
+        // If it's a mock meeting, add it to the local state
+        if (result.mock) {
+          // Add the new meeting to the meetings state
+          const newMeeting = {
+            id: result.data._id,
+            title: result.data.title,
+            student: meetingModal.studentName,
+            date: result.data.scheduledDate,
+            status: 'scheduled'
+          };
+          
+          setMeetings(prevMeetings => [...prevMeetings, newMeeting]);
+          
+          // Update stats
+          setStats(prevStats => ({
+            ...prevStats,
+            upcomingMeetings: prevStats.upcomingMeetings + 1
+          }));
+        }
+        
+        // Ensure the meetings cache is cleared to force a refresh next time
+        facultyService.clearCache();
+        
+        // Refresh meetings data if on meetings tab
+        if (activeTab === 'meetings') {
+          // No need to refresh since we've already updated the state
+        }
+      } else {
+        throw new Error(result.message || 'Failed to schedule meeting');
+      }
+    } catch (error) {
+      console.error('Error scheduling meeting:', error);
+      
+      // Show error message
+      toast.error(error.message || 'Failed to schedule meeting');
+    }
+  };
+  
+  const closeMeetingModal = () => {
+    setMeetingModal(prev => ({ ...prev, isOpen: false }));
   };
 
   const handleUpdateProgress = (projectId) => {
@@ -106,8 +360,106 @@ const Dashboard = () => {
   };
 
   const handleMeetingAction = (meetingId, action) => {
-    // Handle meeting actions like confirm, complete, cancel, etc.
-    console.log(`${action} meeting ID: ${meetingId}`);
+    try {
+      console.log(`${action} meeting ID: ${meetingId}`);
+      
+      // Find the meeting in our state
+      const meetingIndex = meetings.findIndex(m => m.id === meetingId);
+      if (meetingIndex === -1) {
+        console.error(`Meeting with ID ${meetingId} not found`);
+        toast.error('Meeting not found');
+        return;
+      }
+      
+      // Create a copy of our meetings array
+      const updatedMeetings = [...meetings];
+      const meeting = { ...updatedMeetings[meetingIndex] };
+      
+      // Handle different actions
+      switch (action) {
+        case 'start':
+          // In a real app this would start a meeting (e.g., open video call)
+          toast.info(`Starting meeting with ${meeting.student}`);
+          break;
+          
+        case 'cancel':
+          // Update meeting status to cancelled
+          meeting.status = 'cancelled';
+          updatedMeetings[meetingIndex] = meeting;
+          setMeetings(updatedMeetings);
+          
+          // Update stats
+          setStats(prevStats => ({
+            ...prevStats,
+            upcomingMeetings: prevStats.upcomingMeetings - 1
+          }));
+          
+          toast.success('Meeting cancelled successfully');
+          break;
+          
+        case 'confirm':
+          // Update meeting status to scheduled (confirmed)
+          meeting.status = 'scheduled';
+          updatedMeetings[meetingIndex] = meeting;
+          setMeetings(updatedMeetings);
+          
+          // Update stats
+          setStats(prevStats => ({
+            ...prevStats,
+            pendingRequests: prevStats.pendingRequests - 1,
+            upcomingMeetings: prevStats.upcomingMeetings + 1
+          }));
+          
+          toast.success('Meeting confirmed successfully');
+          break;
+          
+        case 'reject':
+          // Update meeting status to rejected
+          meeting.status = 'rejected';
+          updatedMeetings[meetingIndex] = meeting;
+          setMeetings(updatedMeetings);
+          
+          // Update stats
+          setStats(prevStats => ({
+            ...prevStats,
+            pendingRequests: prevStats.pendingRequests - 1
+          }));
+          
+          toast.success('Meeting request rejected');
+          break;
+          
+        case 'complete':
+          // Update meeting status to completed
+          meeting.status = 'completed';
+          updatedMeetings[meetingIndex] = meeting;
+          setMeetings(updatedMeetings);
+          
+          // Update stats
+          setStats(prevStats => ({
+            ...prevStats,
+            upcomingMeetings: prevStats.upcomingMeetings - 1
+          }));
+          
+          toast.success('Meeting marked as completed');
+          break;
+          
+        case 'view-notes':
+          // In a real app this would show meeting notes
+          toast.info('Viewing meeting notes - Feature coming soon');
+          break;
+          
+        default:
+          console.error(`Unknown action: ${action}`);
+          toast.error('Unknown action');
+      }
+      
+      // In a real app, this would call the API to update the meeting status
+      console.log(`Updated meeting status for ID ${meetingId} to ${action === 'confirm' ? 'scheduled' : action}`);
+      
+    } catch (error) {
+      console.error('Error handling meeting action:', error);
+      toast.error('Failed to process meeting action');
+    }
   };
 
   return (
@@ -257,12 +609,20 @@ const Dashboard = () => {
                             </div>
                             <div className="mt-2 md:mt-0 flex flex-col md:flex-row md:items-center">
                               <span className="badge badge-primary mb-2 md:mb-0 md:mr-2">{formatDate(meeting.date)}</span>
-                              <button 
-                                onClick={() => handleMeetingAction(meeting.id, 'start')}
-                                className="btn btn-primary btn-sm"
-                              >
-                                Start Meeting
-                              </button>
+                              <div className="space-x-2">
+                                <button 
+                                  onClick={() => handleMeetingAction(meeting.id, 'start')}
+                                  className="btn btn-primary btn-sm"
+                                >
+                                  Start Meeting
+                                </button>
+                                <button 
+                                  onClick={() => handleMeetingAction(meeting.id, 'complete')}
+                                  className="btn btn-success btn-sm"
+                                >
+                                  Complete
+                                </button>
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -327,9 +687,29 @@ const Dashboard = () => {
               {/* Students Tab */}
               {activeTab === 'students' && (
                 <AssignedStudents
-                  onScheduleMeeting={(studentId) => {
-                    console.log('Schedule meeting with student:', studentId);
-                    // You can add logic here to open a modal or navigate to a meeting form
+                  onScheduleMeeting={(student, projectId) => {
+                    // Now receives the entire student object and project ID
+                    console.log('Schedule meeting with student:', student, 'Project ID:', projectId);
+                    
+                    // Check if we got a student object or just an ID
+                    if (student && typeof student === 'object') {
+                      setMeetingModal({
+                        isOpen: true,
+                        studentId: student._id,
+                        studentName: student.fullName || 'Student',
+                        projectId: projectId, // Store the project ID
+                        formData: {
+                          meetingNumber: '1',
+                          date: new Date().toISOString().split('T')[0], // Today's date as default
+                          time: '10:00',
+                          guideNotes: '',
+                          meetingType: 'online'
+                        }
+                      });
+                    } else {
+                      // Fallback to the previous implementation if we just got an ID
+                      handleScheduleMeeting(student);
+                    }
                   }}
                   onUpdateProgress={(studentId, projectId) => {
                     console.log('Update progress for student:', studentId, 'project:', projectId);
@@ -416,7 +796,35 @@ const Dashboard = () => {
                         <option>Completed</option>
                         <option>Pending</option>
                       </select>
-                      <button className="btn btn-primary">Schedule New</button>
+                      <button 
+                        className="btn btn-primary"
+                        onClick={() => {
+                          // If we have students, open modal with first student
+                          if (students.length > 0) {
+                            const firstStudent = students[0];
+                            const studentId = firstStudent._id || firstStudent.id;
+                            const studentName = firstStudent.fullName || firstStudent.name;
+                            
+                            setMeetingModal({
+                              isOpen: true,
+                              studentId: studentId,
+                              studentName: studentName,
+                              projectId: null,
+                              formData: {
+                                meetingNumber: '1',
+                                date: new Date().toISOString().split('T')[0], // Today's date as default
+                                time: '10:00',
+                                guideNotes: '',
+                                meetingType: 'online'
+                              }
+                            });
+                          } else {
+                            toast.warning('No students available to schedule meetings with');
+                          }
+                        }}
+                      >
+                        Schedule New
+                      </button>
                     </div>
                   </div>
                   
@@ -495,6 +903,132 @@ const Dashboard = () => {
           )}
         </div>
       </div>
+      
+      {/* Meeting Scheduling Modal */}
+      {meetingModal.isOpen && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-lg max-w-md w-full mx-4">
+            <div className="p-4 border-b border-gray-200 flex justify-between items-center">
+              <h3 className="text-lg font-medium text-gray-900">Schedule Meeting</h3>
+              <button 
+                onClick={closeMeetingModal}
+                className="text-gray-400 hover:text-gray-500"
+              >
+                <FaTimes />
+              </button>
+            </div>
+            
+            <form onSubmit={handleSubmitMeeting} className="p-4">
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Student
+                </label>
+                <input
+                  type="text"
+                  className="form-input w-full bg-gray-100"
+                  value={meetingModal.studentName}
+                  disabled
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Meeting Number
+                  </label>
+                  <select
+                    name="meetingNumber"
+                    className="form-select w-full"
+                    value={meetingModal.formData.meetingNumber}
+                    onChange={handleMeetingInputChange}
+                    required
+                  >
+                    <option value="1">Meeting 1</option>
+                    <option value="2">Meeting 2</option>
+                    <option value="3">Meeting 3</option>
+                    <option value="4">Meeting 4</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Meeting Type
+                  </label>
+                  <select
+                    name="meetingType"
+                    className="form-select w-full"
+                    value={meetingModal.formData.meetingType}
+                    onChange={handleMeetingInputChange}
+                    required
+                  >
+                    <option value="online">Online</option>
+                    <option value="inperson">In-Person</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Date
+                  </label>
+                  <input
+                    type="date"
+                    name="date"
+                    className="form-input w-full"
+                    value={meetingModal.formData.date}
+                    onChange={handleMeetingInputChange}
+                    min={new Date().toISOString().split('T')[0]}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Time
+                  </label>
+                  <input
+                    type="time"
+                    name="time"
+                    className="form-input w-full"
+                    value={meetingModal.formData.time}
+                    onChange={handleMeetingInputChange}
+                    required
+                  />
+                </div>
+              </div>
+              
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Guide's Notes / Summary
+                </label>
+                <textarea
+                  name="guideNotes"
+                  rows="3"
+                  className="form-textarea w-full"
+                  placeholder="Your notes on what to discuss in the meeting..."
+                  value={meetingModal.formData.guideNotes}
+                  onChange={handleMeetingInputChange}
+                ></textarea>
+              </div>
+              
+              <div className="flex justify-end space-x-2 mt-4">
+                <button
+                  type="button"
+                  onClick={closeMeetingModal}
+                  className="btn btn-secondary"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                >
+                  Schedule Meeting
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -15,7 +15,8 @@ import {
   FaHome,
   FaTachometerAlt,
   FaBars,
-  FaTimes
+  FaTimes,
+  FaSync
 } from 'react-icons/fa';
 import studentService from '../../services/studentService';
 
@@ -89,6 +90,16 @@ const Dashboard = () => {
         });
         
         console.log('Dashboard data loaded successfully');
+        
+        // Show info message about meetings
+        if (activeView === 'meetings') {
+          setTimeout(() => {
+            toast.info('If your faculty scheduled a meeting recently, click the refresh button in the meetings section to see it.', {
+              autoClose: 8000,
+              icon: <FaSync />
+            });
+          }, 1000);
+        }
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
         setError('Failed to load dashboard data. Please try again.');
@@ -106,7 +117,7 @@ const Dashboard = () => {
     }, 2 * 60 * 1000); // 2 minutes
     
     return () => clearInterval(intervalId);
-  }, [user]);
+  }, [user, activeView]);
 
   const refreshDashboard = async () => {
     try {
@@ -591,29 +602,45 @@ const Dashboard = () => {
                           <div key={meeting._id} className="bg-gray-50 rounded-lg p-3">
                             <div className="flex justify-between items-start">
                               <div>
-                                <h4 className="font-medium text-sm">{meeting.title}</h4>
-                                <p className="text-xs text-gray-500 mt-1">With: {meeting.faculty?.name}</p>
+                                <h4 className="font-medium text-sm">
+                                  {meeting.title || `Meeting ${meeting.meetingNumber}`}
+                                </h4>
+                                <p className="text-xs text-gray-500 mt-1">
+                                  With: {meeting.faculty?.name || meeting.guideName || 'Faculty Guide'}
+                                </p>
                               </div>
                               <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                                {meeting.status === 'scheduled' ? 'Scheduled' : meeting.status}
+                                {meeting.status === 'scheduled' ? 'Scheduled' : meeting.status.charAt(0).toUpperCase() + meeting.status.slice(1)}
                               </span>
                             </div>
                             <div className="mt-2 space-y-1 text-xs text-gray-500">
                               <div className="flex items-center">
                                 <FaCalendarAlt className="text-xs mr-1" /> 
-                                <span>{new Date(meeting.dateTime).toLocaleDateString()}</span>
+                                <span>{new Date(meeting.dateTime || meeting.scheduledDate).toLocaleDateString()}</span>
                               </div>
                               <div className="flex items-center">
                                 <FaClock className="text-xs mr-1" /> 
-                                <span>{new Date(meeting.dateTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                                <span>{new Date(meeting.dateTime || meeting.scheduledDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                               </div>
                               <div className="flex items-center">
                                 <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                                 </svg>
-                                <span>{meeting.location}</span>
+                                <span>{meeting.location || meeting.meetingType || 'Not specified'}</span>
                               </div>
+                              {(meeting.notes || meeting.guideNotes) && (
+                                <div className="flex items-start mt-1">
+                                  <FaClipboardList className="text-xs mr-1 mt-0.5" /> 
+                                  <span className="line-clamp-2">Summary: {meeting.notes || meeting.guideNotes}</span>
+                                </div>
+                              )}
+                              {(meeting.studentNotes || meeting.agenda) && (
+                                <div className="flex items-start mt-1">
+                                  <FaClipboardList className="text-xs mr-1 mt-0.5" /> 
+                                  <span className="line-clamp-2">Points to discuss: {meeting.studentNotes || meeting.agenda}</span>
+                                </div>
+                              )}
                             </div>
                           </div>
                         ))}
