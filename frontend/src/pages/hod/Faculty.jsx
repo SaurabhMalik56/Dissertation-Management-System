@@ -23,43 +23,115 @@ const Faculty = () => {
       setError(null);
       
       try {
-        // First try with the service method
-        try {
-          const faculty = await hodService.getAllFaculty(user.token);
-          setFacultyMembers(faculty);
-          setLoadingFaculty(false);
-          return;
-        } catch (serviceError) {
-          console.warn('Error using hodService:', serviceError);
-          // If it fails, try direct API call as fallback
-        }
-        
-        // Direct API call as fallback
+        // First try with the direct API call - this ensures fresh data
         const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
         const headers = {
           Authorization: `Bearer ${user.token}`
         };
         
         try {
-          // First try the regular faculty endpoint
-          const response = await axios.get(`${API_URL}/users/faculty`, { headers });
-          setFacultyMembers(response.data);
+          // First try the regular faculty endpoint with fresh data (no cache)
+          const response = await axios.get(`${API_URL}/users/faculty`, { 
+            headers,
+            params: { 
+              timestamp: Date.now(), // This forces a fresh request
+              department: user.department // Filter by department if needed
+            }
+          });
+          
+          // Process faculty data to ensure guide status is accurate
+          const processedFaculty = response.data.map(faculty => {
+            // Make sure assignedStudents is always an array
+            const assignedStudents = Array.isArray(faculty.assignedStudents) 
+              ? faculty.assignedStudents 
+              : [];
+              
+            return {
+              ...faculty,
+              assignedStudents,
+              studentsCount: assignedStudents.length
+            };
+          });
+          
+          setFacultyMembers(processedFaculty);
         } catch (firstError) {
           console.log('Regular API call failed, trying HOD-specific endpoint');
           // If that fails, try the HOD-specific endpoint
-          const fallbackResponse = await axios.get(`${API_URL}/users/hod-faculty`, { headers });
-          setFacultyMembers(fallbackResponse.data);
+          const fallbackResponse = await axios.get(`${API_URL}/users/hod-faculty`, { 
+            headers,
+            params: { 
+              timestamp: Date.now(), // This forces a fresh request
+              department: user.department
+            }
+          });
+          
+          // Process faculty data
+          const processedFaculty = fallbackResponse.data.map(faculty => {
+            const assignedStudents = Array.isArray(faculty.assignedStudents) 
+              ? faculty.assignedStudents 
+              : [];
+              
+            return {
+              ...faculty,
+              assignedStudents,
+              studentsCount: assignedStudents.length
+            };
+          });
+          
+          setFacultyMembers(processedFaculty);
         }
       } catch (error) {
         console.error('Error fetching faculty:', error);
         setError('Failed to load faculty members. You may not have the necessary permissions.');
         toast.error('Failed to load faculty members');
+        
+        // Try the service method as a last resort
+        try {
+          const faculty = await hodService.getAllFaculty(user.token, true); // Force refresh
+          
+          const processedFaculty = faculty.map(f => ({
+            ...f,
+            assignedStudents: Array.isArray(f.assignedStudents) ? f.assignedStudents : [],
+            studentsCount: Array.isArray(f.assignedStudents) ? f.assignedStudents.length : 0
+          }));
+          
+          setFacultyMembers(processedFaculty);
+        } catch (serviceError) {
+          console.warn('Fallback to service also failed:', serviceError);
+        }
       } finally {
         setLoadingFaculty(false);
       }
     };
 
+    // Initial fetch when component mounts
     fetchFaculty();
+    
+    // Set up auto-refresh mechanisms
+    
+    // 1. Refresh when page becomes visible again (user returns from another tab)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('Page became visible, refreshing faculty data');
+        fetchFaculty();
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // 2. Set up a polling interval when the component is visible
+    const refreshInterval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        console.log('Auto-refresh: fetching latest faculty data');
+        fetchFaculty();
+      }
+    }, 30000); // Refresh every 30 seconds when page is visible
+    
+    // Clean up event listeners and intervals
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      clearInterval(refreshInterval);
+    };
   }, [user]);
 
   // Filter faculty members based on search and guide status

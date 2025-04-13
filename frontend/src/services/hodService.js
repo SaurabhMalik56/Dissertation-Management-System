@@ -23,11 +23,13 @@ const cache = {
   departmentProjects: null,
   departmentProjectsTimestamp: null,
   departmentStudents: null,
-  departmentStudentsTimestamp: null
+  departmentStudentsTimestamp: null,
+  facultyData: null,
+  facultyTimestamp: null
 };
 
-// Cache expiration time in milliseconds (5 minutes)
-const CACHE_EXPIRATION = 5 * 60 * 1000;
+// Cache timeout in milliseconds (30 minutes)
+const CACHE_TIMEOUT = 30 * 60 * 1000;
 
 // Cache management functions
 const clearCache = () => {
@@ -38,6 +40,8 @@ const clearCache = () => {
   cache.departmentProjectsTimestamp = null;
   cache.departmentStudents = null;
   cache.departmentStudentsTimestamp = null;
+  cache.facultyData = null;
+  cache.facultyTimestamp = null;
 };
 
 const clearFacultyCache = () => {
@@ -58,10 +62,10 @@ const clearStudentsCache = () => {
   cache.departmentStudentsTimestamp = null;
 };
 
-// Check if cache is valid
-const isCacheValid = (timestamp) => {
-  if (!timestamp) return false;
-  return Date.now() - timestamp < CACHE_EXPIRATION;
+// Function to check if cache is expired
+const isCacheExpired = (timestamp) => {
+  if (!timestamp) return true;
+  return Date.now() - timestamp > CACHE_TIMEOUT;
 };
 
 // Get all projects in the HOD's department with caching
@@ -71,13 +75,13 @@ const getDepartmentProjects = async (token, forceRefresh = false, filters = {}) 
     
     // Log cache status for debugging
     if (cache.departmentProjects) {
-      console.log('Projects cache status: ' + (isCacheValid(cache.departmentProjectsTimestamp) ? 'valid' : 'expired'));
+      console.log('Projects cache status: ' + (isCacheExpired(cache.departmentProjectsTimestamp) ? 'expired' : 'valid'));
     } else {
       console.log('Projects cache: none');
     }
     
     // Use cached data if available and not expired, unless force refresh is requested
-    if (!forceRefresh && cache.departmentProjects && isCacheValid(cache.departmentProjectsTimestamp)) {
+    if (!forceRefresh && cache.departmentProjects && !isCacheExpired(cache.departmentProjectsTimestamp)) {
       console.log('Using cached project data');
       // Apply filters to cached data when not forcing refresh
       let filteredProjects = cache.departmentProjects;
@@ -120,75 +124,41 @@ const getDepartmentProjects = async (token, forceRefresh = false, filters = {}) 
 // Get all faculty in the system with caching (HODs can see all faculty)
 const getAllFaculty = async (token, forceRefresh = false) => {
   try {
-    const now = Date.now();
-    
     // Log cache status for debugging
-    if (cache.faculty) {
-      console.log('Faculty cache status: ' + (isCacheValid(cache.facultyTimestamp) ? 'valid' : 'expired'));
+    if (cache.facultyData) {
+      console.log('Faculty cache status: ' + (isCacheExpired(cache.facultyTimestamp) ? 'expired' : 'valid'));
     } else {
       console.log('Faculty cache: none');
     }
-    
+
     // Use cached data if available and not expired, unless force refresh is requested
-    if (!forceRefresh && cache.faculty && isCacheValid(cache.facultyTimestamp)) {
+    if (!forceRefresh && cache.facultyData && !isCacheExpired(cache.facultyTimestamp)) {
       console.log('Using cached faculty data');
-      return cache.faculty;
+      return cache.facultyData;
     }
 
+    // Fetch faculty data from regular faculty endpoint
     console.log('Fetching fresh faculty data from API');
-    console.log('Making API call to get faculty with token:', token ? token.substring(0, 15) + '...' : 'No token');
-    
-    let response;
-    let endpoint = `${API_URL}/users/faculty`;
-    let errorMessage = '';
-    
-    try {
-      // First try the regular faculty endpoint
-      console.log('Trying primary faculty endpoint:', endpoint);
-      response = await axios.get(endpoint, createAuthHeader(token));
-    } catch (error) {
-      console.warn('Primary faculty endpoint failed:', error.response?.status, error.response?.data?.message);
-      errorMessage = error.response?.data?.message || 'Failed to access faculty data';
-      
-      // If that fails, try the HOD-specific endpoint
-      try {
-        endpoint = `${API_URL}/users/hod-faculty`;
-        console.log('Trying fallback faculty endpoint:', endpoint);
-        response = await axios.get(endpoint, createAuthHeader(token));
-      } catch (fallbackError) {
-        console.error('Fallback faculty endpoint also failed:', fallbackError.response?.status);
-        
-        // If both endpoints fail, try a direct query as a last resort
-        try {
-          console.log('Trying direct faculty query as last resort');
-          const usersResponse = await axios.get(`${API_URL}/users?role=faculty`, createAuthHeader(token));
-          if (usersResponse.data && Array.isArray(usersResponse.data)) {
-            response = usersResponse;
-          } else {
-            throw new Error('Invalid response format from users endpoint');
-          }
-        } catch (lastError) {
-          console.error('All faculty data access attempts failed');
-          throw new Error(`${errorMessage}. Additional error: ${lastError.response?.data?.message || lastError.message}`);
-        }
-      }
-    }
+    const response = await axios.get(`${API_URL}/users/faculty`, createAuthHeader(token));
     
     if (!response || !response.data) {
-      throw new Error('No data received from faculty endpoints');
+      throw new Error('No data received from faculty endpoint');
     }
     
-    // Update cache
-    cache.faculty = response.data;
-    cache.facultyTimestamp = now;
-    console.log(`Cached ${response.data.length} faculty members`);
+    // Process faculty data
+    const processedFaculty = response.data.map(faculty => ({
+      ...faculty,
+      // Ensure assignedStudents is always an array
+      assignedStudents: Array.isArray(faculty.assignedStudents) ? faculty.assignedStudents : [],
+      studentsCount: Array.isArray(faculty.assignedStudents) ? faculty.assignedStudents.length : 0
+    }));
     
-    // Debug: Log sample faculty data to understand structure
-    if (response.data.length > 0) {
-      console.log('Sample faculty data:', response.data[0]);
-    }
+    // Cache the result and timestamp
+    cache.facultyData = processedFaculty;
+    cache.facultyTimestamp = Date.now();
+    console.log(`Cached ${processedFaculty.length} faculty members`);
     
-    return response.data;
+    return processedFaculty;
   } catch (error) {
     console.error('Error fetching faculty:', error);
     const errorMessage = error.response?.data?.message || 'Failed to fetch faculty';
@@ -222,13 +192,13 @@ const getDepartmentStudents = async (token, department, forceRefresh = false) =>
     
     // Log cache status for debugging
     if (cache.departmentStudents) {
-      console.log('Students cache status: ' + (isCacheValid(cache.departmentStudentsTimestamp) ? 'valid' : 'expired'));
+      console.log('Students cache status: ' + (isCacheExpired(cache.departmentStudentsTimestamp) ? 'expired' : 'valid'));
     } else {
       console.log('Students cache: none');
     }
     
     // Use cached data if available and not expired, unless force refresh is requested
-    if (!forceRefresh && cache.departmentStudents && isCacheValid(cache.departmentStudentsTimestamp)) {
+    if (!forceRefresh && cache.departmentStudents && !isCacheExpired(cache.departmentStudentsTimestamp)) {
       console.log('Using cached students data');
       return cache.departmentStudents;
     }
@@ -299,59 +269,73 @@ const assignGuideToStudent = async (token, studentId, guideId) => {
   }
 };
 
-// Assign a guide to both project and student in one operation
+// Assign guide to both project and student
 const assignGuideToProjectAndStudent = async (token, projectId, guideId) => {
   try {
-    // First get the project to get the student ID
-    const projectResponse = await axios.get(
-      `${API_URL}/projects/${projectId}`,
-      createAuthHeader(token)
-    );
+    console.log(`Assigning guide ${guideId} to project ${projectId} and associated student`);
     
-    console.log('Project data received:', projectResponse.data);
+    // Get the project details first to find the student
+    const projectResponse = await axios.get(`${API_URL}/projects/${projectId}`, createAuthHeader(token));
+    const project = projectResponse.data;
     
-    // Handle different ways the student ID might be stored
-    let studentId = null;
-    if (projectResponse.data.student) {
-      if (typeof projectResponse.data.student === 'object' && projectResponse.data.student._id) {
-        studentId = projectResponse.data.student._id;
-      } else if (typeof projectResponse.data.student === 'string') {
-        studentId = projectResponse.data.student;
-      }
+    if (!project) {
+      throw new Error('Project not found');
     }
+    
+    const studentId = typeof project.student === 'object' ? project.student._id : project.student;
     
     if (!studentId) {
       throw new Error('No student associated with this project');
     }
     
-    console.log('Found student ID for project:', studentId);
+    // Record the previous guide for later removal
+    const previousGuideId = project.guide ? 
+      (typeof project.guide === 'object' ? project.guide._id : project.guide) : 
+      null;
     
-    // Now do both assignments in parallel
-    const results = await Promise.all([
-      // Assign guide to project
-      axios.put(
-        `${API_URL}/projects/${projectId}`,
-        { guide: guideId },
+    // 1. Assign guide to project
+    const projectUpdateResponse = await axios.put(
+      `${API_URL}/projects/${projectId}/guide`,
+      { guideId },
+      createAuthHeader(token)
+    );
+    
+    // 2. Assign guide to student
+    const studentUpdateResponse = await axios.put(
+      `${API_URL}/users/${studentId}/guide`,
+      { guideId },
+      createAuthHeader(token)
+    );
+    
+    // 3. Update the guide's assignedStudents array (add the student)
+    if (guideId) {
+      await axios.put(
+        `${API_URL}/users/${guideId}/add-student`,
+        { studentId },
         createAuthHeader(token)
-      ),
-      
-      // Assign guide to student
-      axios.put(
-        `${API_URL}/users/${studentId}/assign-guide/${guideId}`,
-        {},
+      );
+    }
+    
+    // 4. If there was a previous guide, update their assignedStudents array (remove the student)
+    if (previousGuideId && previousGuideId !== guideId) {
+      await axios.put(
+        `${API_URL}/users/${previousGuideId}/remove-student`,
+        { studentId },
         createAuthHeader(token)
-      )
-    ]);
+      );
+    }
     
-    console.log('Assignment results:', results.map(r => r.status));
+    // Clear cache to ensure fresh data on next fetch
+    clearFacultyCache();
+    clearProjectsCache();
+    clearStudentsCache();
     
-    // Invalidate all relevant caches
-    cache.departmentProjects = null;
-    cache.departmentStudents = null;
-    
-    return { success: true, message: 'Guide assigned to both project and student' };
+    return {
+      projectUpdate: projectUpdateResponse.data,
+      studentUpdate: studentUpdateResponse.data
+    };
   } catch (error) {
-    console.error('Error in assignGuideToProjectAndStudent:', error);
+    console.error('Error assigning guide:', error);
     throw new Error(error.response?.data?.message || 'Failed to assign guide to project and student');
   }
 };

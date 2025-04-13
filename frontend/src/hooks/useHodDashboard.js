@@ -362,18 +362,69 @@ const useHodDashboard = () => {
       
       // Find the project to check if it's an initial assignment or reassignment
       const project = projects.find(p => p._id === projectId);
-      if (project) {
-        const isReassignment = !!project.facultyId;
-        console.log(`${isReassignment ? 'Reassigning' : 'Assigning'} guide for project ${projectId} to guide ${guideId}`);
+      if (!project) {
+        throw new Error('Project not found');
       }
+      
+      const isReassignment = !!project.facultyId;
+      console.log(`${isReassignment ? 'Reassigning' : 'Assigning'} guide for project ${projectId} to guide ${guideId}`);
       
       // Use the combined service function to ensure both project and student get updated
       await hodService.assignGuideToProjectAndStudent(userToken, projectId, guideId);
       
-      toast.success('Guide assigned to project successfully');
+      // Find guide details for the update
+      const guideDetails = faculty.find(f => f.id === guideId);
       
-      // Refresh all relevant data
-      await fetchDashboardData('all');
+      // Update local projects state for immediate UI feedback
+      const updatedProjects = projects.map(p => {
+        if (p._id === projectId) {
+          return {
+            ...p,
+            facultyId: guideId,
+            faculty: guideDetails?.name || 'Assigned Guide',
+            facultyEmail: guideDetails?.email || ''
+          };
+        }
+        return p;
+      });
+      
+      // Update the students state to reflect the new guide assignment
+      const updatedStudents = students.map(s => {
+        // Check if this student is associated with the project
+        if (s.id === project.studentId) {
+          return {
+            ...s,
+            assignedGuide: guideId,
+            faculty: 'Assigned' // Update the guide status
+          };
+        }
+        
+        // If this was a reassignment, remove the old guide from any student that had the previous guide
+        if (isReassignment && s.assignedGuide === project.facultyId) {
+          // Check if the student has any other projects with the same guide
+          const studentOtherProjects = updatedProjects.filter(p => 
+            p._id !== projectId && p.studentId === s.id && p.facultyId === project.facultyId
+          );
+          
+          // Only remove the guide if the student doesn't have other projects with this guide
+          if (studentOtherProjects.length === 0) {
+            return {
+              ...s,
+              assignedGuide: null,
+              faculty: 'Not Assigned'
+            };
+          }
+        }
+        
+        return s;
+      });
+      
+      // Update the states with the updated data
+      setProjects(updatedProjects);
+      setStudents(updatedStudents);
+      
+      // Set loading to false since we've updated locally
+      setIsLoading(false);
       
       return true;
     } catch (error) {
@@ -381,7 +432,7 @@ const useHodDashboard = () => {
       setIsLoading(false);
       return false;
     }
-  }, [userToken, projects, fetchDashboardData]);
+  }, [userToken, projects, faculty, students, setProjects, setStudents]);
   
   // Handle updating project status
   const handleUpdateProjectStatus = useCallback(async (projectId, status, feedback) => {

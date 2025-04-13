@@ -94,17 +94,23 @@ const Dashboard = () => {
       const project = projects.find(p => p._id === projectId);
       const isReassignment = project && project.facultyId;
       
-      await handleAssignGuideToProject(projectId, guideId);
+      // Get the guide info for the toast message
+      const newGuide = departmentFaculty.find(f => f.id === guideId);
+      const previousGuide = isReassignment ? departmentFaculty.find(f => f.id === project.facultyId) : null;
       
-      if (isReassignment) {
-        const newGuide = departmentFaculty.find(f => f.id === guideId);
-        const previousGuide = departmentFaculty.find(f => f.id === project.facultyId);
-        toast.success(`Guide reassigned from ${previousGuide?.name || 'previous guide'} to ${newGuide?.name || 'new guide'}`);
-      } else {
-        const newGuide = departmentFaculty.find(f => f.id === guideId);
-        toast.success(`Guide ${newGuide?.name || 'new guide'} assigned successfully!`);
+      // Call the hook function to update the assignment
+      const success = await handleAssignGuideToProject(projectId, guideId);
+      
+      if (success) {
+        // Show appropriate success message
+        if (isReassignment) {
+          toast.success(`Guide reassigned from ${previousGuide?.name || 'previous guide'} to ${newGuide?.name || 'new guide'}`);
+        } else {
+          toast.success(`Guide ${newGuide?.name || 'new guide'} assigned successfully!`);
+        }
       }
       
+      // Close the modal and reset state
       setAssigningGuide(false);
       setSelectedProject(null);
       setSelectedGuideId('');
@@ -326,13 +332,15 @@ const Dashboard = () => {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             {project.facultyId ? (
-                              <div>
+                              <div className="flex flex-col items-start">
                                 <div className="text-sm font-medium text-gray-900">
                                   {project.faculty}
                                 </div>
-                                <div className="text-sm text-gray-500">
-                                  {project.facultyEmail}
-                                </div>
+                                {project.facultyEmail && (
+                                  <div className="text-sm text-gray-500">
+                                    {project.facultyEmail}
+                                  </div>
+                                )}
                               </div>
                             ) : (
                               <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
@@ -389,8 +397,20 @@ const Dashboard = () => {
             <div className="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
               <div>
                 <div className="mt-3 text-center sm:mt-5">
-                  <h3 className="text-lg leading-6 font-medium text-gray-900">
-                    {selectedProject.facultyId ? 'Reassign Guide' : 'Assign Guide'} to Project
+                  <h3 className="text-lg leading-6 font-medium text-gray-900 flex justify-between items-center">
+                    <span>{selectedProject.facultyId ? 'Reassign Guide' : 'Assign Guide'} to Project</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAssigningGuide(false);
+                        setSelectedProject(null);
+                        setSelectedGuideId('');
+                      }}
+                      className="inline-flex items-center justify-center p-1 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500 transition-colors duration-150"
+                    >
+                      <span className="sr-only">Close</span>
+                      <XMarkIcon className="h-6 w-6" aria-hidden="true" />
+                    </button>
                   </h3>
                   <div className="mt-2">
                     <p className="text-sm text-gray-500">
@@ -459,6 +479,35 @@ const Dashboard = () => {
                     </div>
                   )}
                 </div>
+              </div>
+              <div className="mt-5 sm:mt-6 flex space-x-3">
+                {selectedProject.facultyId && (
+                  <button
+                    type="button"
+                    className="inline-flex justify-center w-full rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:text-sm transition-colors duration-150"
+                    onClick={() => {
+                      // Simple mock of removing guide assignment
+                      toast.success(`Guide assignment removed from ${selectedProject.faculty}`);
+                      // Would normally call an API to remove the assignment
+                      setAssigningGuide(false);
+                      setSelectedProject(null);
+                      setSelectedGuideId('');
+                    }}
+                  >
+                    Remove Guide
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className={`inline-flex justify-center w-full rounded-md border border-transparent shadow-sm px-4 py-2 bg-gray-600 text-base font-medium text-white hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 sm:text-sm transition-colors duration-150 ${selectedProject.facultyId ? '' : 'w-full'}`}
+                  onClick={() => {
+                    setAssigningGuide(false);
+                    setSelectedProject(null);
+                    setSelectedGuideId('');
+                  }}
+                >
+                  Cancel
+                </button>
               </div>
             </div>
           </div>
