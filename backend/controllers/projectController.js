@@ -469,7 +469,7 @@ const deleteProject = asyncHandler(async (req, res) => {
 // @route   PATCH /api/projects/:id/status
 // @access  Private (HOD only)
 const updateProjectStatus = asyncHandler(async (req, res) => {
-  const { status, comments } = req.body;
+  const { status, comments, guide } = req.body;
 
   if (!status || !['pending', 'approved', 'rejected'].includes(status)) {
     res.status(400);
@@ -492,14 +492,57 @@ const updateProjectStatus = asyncHandler(async (req, res) => {
     throw new Error('Not authorized - only department HOD can update project status');
   }
 
-  // Update project status
+  // Log the request for debugging
+  console.log('[Project Status Update] Request body:', req.body);
+  console.log('[Project Status Update] Current project guide:', project.guide);
+  
+  // Update project status and other fields
   project.status = status;
   if (comments) project.comments = comments;
-  project.lastUpdated = Date.now();
   
+  // Handle guide assignment if provided in the request
+  if (guide) {
+    console.log(`[Project Status Update] Updating guide from ${project.guide} to ${guide}`);
+    
+    // Verify the guide exists and is a faculty member
+    const guideUser = await User.findById(guide);
+    if (!guideUser || guideUser.role !== 'faculty') {
+      res.status(400);
+      throw new Error('Invalid guide - must be a faculty member');
+    }
+    
+    // Set the guide
+    project.guide = guide;
+    
+    // Send notification to the newly assigned guide
+    await sendNotification(
+      guide,
+      'New Project Assignment',
+      `You have been assigned as a guide for project: ${project.title}`,
+      'project',
+      `projects/${project._id}`
+    );
+    
+    // Send notification to the student
+    await sendNotification(
+      project.student,
+      'Guide Assigned',
+      `${guideUser.fullName || guideUser.name} has been assigned as your guide for your project: ${project.title}`,
+      'project',
+      `guide`
+    );
+  }
+  
+  project.lastUpdated = Date.now();
   await project.save();
+  
+  console.log('[Project Status Update] Updated project:', {
+    id: project._id,
+    status: project.status,
+    guide: project.guide
+  });
 
-  // Send notification to student
+  // Send notification to student about status change
   let notificationMessage = '';
   if (status === 'approved') {
     notificationMessage = `Your project proposal "${project.title}" has been approved.`;
@@ -507,13 +550,15 @@ const updateProjectStatus = asyncHandler(async (req, res) => {
     notificationMessage = `Your project proposal "${project.title}" has been rejected. Please check the comments for details.`;
   }
 
-  await sendNotification(
-    project.student,
-    `Project ${status.charAt(0).toUpperCase() + status.slice(1)}`,
-    notificationMessage,
-    'proposal',
-    `projects/${project._id}`
-  );
+  if (notificationMessage) {
+    await sendNotification(
+      project.student,
+      `Project ${status.charAt(0).toUpperCase() + status.slice(1)}`,
+      notificationMessage,
+      'proposal',
+      `projects/${project._id}`
+    );
+  }
 
   res.status(200).json(project);
 });

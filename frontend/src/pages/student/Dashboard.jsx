@@ -61,6 +61,19 @@ const Dashboard = () => {
         // Fetch all dashboard data in one call
         const data = await studentService.getStudentDashboard(user.token);
         
+        // Log guide data to help debug
+        console.log('Guide data received:', data.guide);
+        
+        // Check if guide has been reassigned
+        const guideChanged = 
+          dashboardData.guide && 
+          data.guide && 
+          dashboardData.guide._id !== data.guide._id;
+          
+        if (guideChanged) {
+          toast.info('Your advisor has been updated! Refreshing information...');
+        }
+        
         // Update dashboard data
         setDashboardData({
           projects: data.projects || [],
@@ -86,6 +99,13 @@ const Dashboard = () => {
     };
 
     fetchDashboardData();
+    
+    // Set up auto-refresh interval (every 2 minutes) to check for guide changes
+    const intervalId = setInterval(() => {
+      fetchDashboardData();
+    }, 2 * 60 * 1000); // 2 minutes
+    
+    return () => clearInterval(intervalId);
   }, [user]);
 
   const refreshDashboard = async () => {
@@ -487,54 +507,72 @@ const Dashboard = () => {
                 <div className="lg:col-span-1">
                   {/* Advisor Information */}
                   <div className="mb-6 bg-white border border-gray-200 p-4 rounded-lg hover:shadow-md transition-shadow duration-300">
-                    <h3 className="text-lg font-medium mb-3">Your Advisor</h3>
+                    <h3 className="text-lg font-medium mb-3 flex justify-between items-center">
+                      <span>Your Advisor</span>
+                      <button
+                        onClick={refreshDashboard}
+                        className="p-1 rounded-full text-gray-500 hover:text-gray-700 focus:outline-none"
+                        title="Refresh Advisor Info"
+                      >
+                        <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                      </button>
+                    </h3>
                     {dashboardData.guide ? (
-                      <div>
-                        <div className="flex items-center mb-4">
-                          <div className="bg-indigo-100 p-3 rounded-full mr-4">
-                            <FaUserTie className="text-indigo-600 text-xl" />
+                      (() => {
+                        // Helper function to get the guide's name from various possible property names
+                        const getGuideName = () => {
+                          if (!dashboardData.guide) return "Faculty Guide";
+                          
+                          // Check for various possible property names for the guide's name
+                          const nameProps = ['fullName', 'name', 'facultyName', 'userName', 'displayName'];
+                          for (const prop of nameProps) {
+                            if (dashboardData.guide[prop] && typeof dashboardData.guide[prop] === 'string') {
+                              return dashboardData.guide[prop];
+                            }
+                          }
+                          
+                          // If we have a name property but it might be an object with firstName/lastName
+                          if (dashboardData.guide.firstName && dashboardData.guide.lastName) {
+                            return `${dashboardData.guide.firstName} ${dashboardData.guide.lastName}`;
+                          }
+                          
+                          // Last resort fallback
+                          return "Faculty Guide";
+                        };
+                        
+                        return (
+                          <div className="bg-indigo-50 rounded-lg p-4">
+                            <div className="flex items-center">
+                              <div className="bg-indigo-100 p-3 rounded-full mr-4">
+                                <FaUserTie className="text-indigo-600 text-xl" />
+                              </div>
+                              <div className="flex-1">
+                                <h4 className="font-semibold text-lg text-indigo-900">
+                                  {getGuideName()}
+                                </h4>
+                              </div>
+                            </div>
+                            
+                            <div className="flex items-start mx-1 mt-3">
+                              <svg className="h-5 w-5 text-indigo-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                              </svg>
+                              <span className="text-indigo-700 font-medium break-all">{dashboardData.guide.email}</span>
+                            </div>
+                            
+                            <div className="mt-4 text-center">
+                              <button 
+                                onClick={() => setActiveView('guide')}
+                                className="text-indigo-600 hover:text-indigo-800 text-sm font-medium"
+                              >
+                                View Full Profile
+                              </button>
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-medium">{dashboardData.guide.name}</p>
-                            <p className="text-sm text-gray-500 mt-1">{dashboardData.guide.department}</p>
-                          </div>
-                        </div>
-                        <div className="space-y-2 text-sm text-gray-600">
-                          <div className="flex items-start">
-                            <svg className="h-5 w-5 text-gray-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                            </svg>
-                            <span>{dashboardData.guide.email}</span>
-                          </div>
-                          <div className="flex items-start">
-                            <svg className="h-5 w-5 text-gray-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                            </svg>
-                            <span>{dashboardData.guide.phone || 'Not available'}</span>
-                          </div>
-                          <div className="flex items-start">
-                            <svg className="h-5 w-5 text-gray-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                            </svg>
-                            <span>{dashboardData.guide.officeLocation}</span>
-                          </div>
-                        </div>
-                        <div className="mt-4 space-x-2">
-                          <button 
-                            onClick={() => setActiveView('guide')}
-                            className="text-indigo-600 hover:text-indigo-800 text-sm font-medium"
-                          >
-                            View Profile
-                          </button>
-                          <button 
-                            onClick={() => setActiveView('meetings')}
-                            className="text-indigo-600 hover:text-indigo-800 text-sm font-medium"
-                          >
-                            View Meetings
-                          </button>
-                        </div>
-                      </div>
+                        );
+                      })()
                     ) : (
                       <div className="text-center py-4">
                         <FaUserTie className="mx-auto text-gray-400 text-3xl mb-3" />
@@ -572,7 +610,7 @@ const Dashboard = () => {
                               <div className="flex items-center">
                                 <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                                 </svg>
                                 <span>{meeting.location}</span>
                               </div>

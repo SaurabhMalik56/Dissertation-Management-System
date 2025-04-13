@@ -293,42 +293,52 @@ const assignGuideToProjectAndStudent = async (token, projectId, guideId) => {
       (typeof project.guide === 'object' ? project.guide._id : project.guide) : 
       null;
     
-    // 1. Assign guide to project
-    const projectUpdateResponse = await axios.put(
-      `${API_URL}/projects/${projectId}/guide`,
-      { guideId },
+    console.log(`Previous guide: ${previousGuideId}, New guide: ${guideId}, Student: ${studentId}`);
+    
+    // 1. Update the project with the new guide
+    console.log(`Updating project ${projectId} with guide ${guideId}`);
+    const projectUpdateResponse = await axios.patch(
+      `${API_URL}/projects/${projectId}/status`,  // Using the status endpoint which HODs have access to
+      { 
+        guide: guideId,
+        // Keep the current status to avoid changing it
+        status: project.status || 'pending'
+      },
       createAuthHeader(token)
     );
+    console.log(`Project update response:`, projectUpdateResponse.data);
     
-    // 2. Assign guide to student
+    // 2. Use the new endpoint for updating student's guide
+    console.log(`Updating student ${studentId} with guide ${guideId}`);
     const studentUpdateResponse = await axios.put(
-      `${API_URL}/users/${studentId}/guide`,
+      `${API_URL}/users/students/${studentId}/guide`,
       { guideId },
       createAuthHeader(token)
     );
+    console.log(`Student update response:`, studentUpdateResponse.data);
     
-    // 3. Update the guide's assignedStudents array (add the student)
-    if (guideId) {
-      await axios.put(
-        `${API_URL}/users/${guideId}/add-student`,
-        { studentId },
-        createAuthHeader(token)
-      );
+    // 3. Force clear all caches to ensure fresh data on next fetch
+    console.log('Clearing all caches to ensure fresh data');
+    clearCache();
+    
+    // 4. Verify the update worked by fetching the project again
+    try {
+      const verifyResponse = await axios.get(`${API_URL}/projects/${projectId}`, createAuthHeader(token));
+      const updatedProject = verifyResponse.data;
+      console.log(`Verification - Project guide after update:`, updatedProject.guide);
+      
+      // Check if the guide was actually updated
+      const updatedGuideId = typeof updatedProject.guide === 'object' ? 
+        updatedProject.guide._id : updatedProject.guide;
+      
+      if (updatedGuideId !== guideId) {
+        console.warn(`⚠️ Guide assignment verification failed - expected ${guideId} but got ${updatedGuideId}`);
+      } else {
+        console.log(`✅ Guide assignment verification successful`);
+      }
+    } catch (verifyError) {
+      console.error('Verification check failed:', verifyError.message);
     }
-    
-    // 4. If there was a previous guide, update their assignedStudents array (remove the student)
-    if (previousGuideId && previousGuideId !== guideId) {
-      await axios.put(
-        `${API_URL}/users/${previousGuideId}/remove-student`,
-        { studentId },
-        createAuthHeader(token)
-      );
-    }
-    
-    // Clear cache to ensure fresh data on next fetch
-    clearFacultyCache();
-    clearProjectsCache();
-    clearStudentsCache();
     
     return {
       projectUpdate: projectUpdateResponse.data,

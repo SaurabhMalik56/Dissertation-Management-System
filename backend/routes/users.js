@@ -7,7 +7,8 @@ const {
     getFaculty, 
     getStudents, 
     assignGuide,
-    updateProfile
+    updateProfile,
+    updateStudentGuide
 } = require('../controllers/userController');
 const { protect, authorize, allowRoles } = require('../middleware/auth');
 
@@ -50,6 +51,9 @@ router.get('/hod-faculty', (req, res) => {
 
 // HOD and Faculty routes
 router.get('/students', allowRoles('hod', 'faculty', 'admin'), getStudents);
+
+// New route for updating a student's guide
+router.put('/students/:id/guide', allowRoles('hod', 'admin'), updateStudentGuide);
 
 // PARAMETERIZED ROUTES LAST
 // -------------------------

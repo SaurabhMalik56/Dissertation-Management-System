@@ -235,4 +235,122 @@ exports.updateProfile = async (req, res) => {
         console.error(error);
         res.status(500).json({ message: 'Server error', error: error.message });
     }
+};
+
+// @desc    Update student's guide (for HOD dashboard)
+// @route   PUT /api/users/students/:id/guide
+// @access  Private/HOD
+exports.updateStudentGuide = async (req, res) => {
+    try {
+        console.log(`[Controller] updateStudentGuide called for student: ${req.params.id}`);
+        console.log(`[Controller] Guide ID from request body: ${req.body.guideId}`);
+        
+        // Validate required parameters
+        const studentId = req.params.id;
+        const { guideId } = req.body;
+        
+        if (!guideId) {
+            return res.status(400).json({ message: 'Guide ID is required in the request body' });
+        }
+        
+        // Find the student by ID and ensure they have a student role
+        const student = await User.findById(studentId);
+        if (!student || student.role !== 'student') {
+            console.log(`[Controller] Student not found or not a student role: ${studentId}`);
+            return res.status(404).json({ message: 'Student not found' });
+        }
+        
+        // Find the guide by ID and ensure they have a faculty role
+        const guide = await User.findById(guideId);
+        if (!guide || guide.role !== 'faculty') {
+            console.log(`[Controller] Guide not found or not a faculty role: ${guideId}`);
+            return res.status(404).json({ message: 'Faculty guide not found' });
+        }
+        
+        // Store the previous guide ID for reference (to update their assignedStudents list)
+        const previousGuideId = student.assignedGuide;
+        console.log(`[Controller] Previous guide ID: ${previousGuideId}, New guide ID: ${guideId}`);
+        
+        // Update the student document with the new guide ID
+        student.assignedGuide = guideId;
+        await student.save();
+        console.log(`[Controller] Updated student's assignedGuide to ${guideId}`);
+        
+        // Add the student to the new guide's assignedStudents array if not already present
+        if (!guide.assignedStudents.includes(studentId)) {
+            guide.assignedStudents.push(studentId);
+            await guide.save();
+            console.log(`[Controller] Student ${studentId} added to guide ${guideId}'s assignedStudents array`);
+        }
+        
+        // If there was a previous guide different from the new one, remove the student from their list
+        if (previousGuideId && previousGuideId.toString() !== guideId) {
+            const previousGuide = await User.findById(previousGuideId);
+            if (previousGuide) {
+                console.log(`[Controller] Removing student ${studentId} from previous guide ${previousGuideId}'s assignedStudents array`);
+                previousGuide.assignedStudents = previousGuide.assignedStudents
+                    .filter(id => id.toString() !== studentId);
+                await previousGuide.save();
+                console.log(`[Controller] Student ${studentId} removed from previous guide ${previousGuideId}'s assignedStudents array`);
+            } else {
+                console.log(`[Controller] Previous guide ${previousGuideId} not found, skipping removal`);
+            }
+        }
+        
+        // Find any projects associated with this student and update their guide as well
+        try {
+            // Use the Project model to update the student's projects
+            const Project = require('../models/Project');
+            const studentProjects = await Project.find({ student: studentId });
+            
+            if (studentProjects.length > 0) {
+                console.log(`[Controller] Found ${studentProjects.length} projects for student ${studentId}`);
+                
+                for (const project of studentProjects) {
+                    project.guide = guideId;
+                    project.lastUpdated = Date.now();
+                    await project.save();
+                    console.log(`[Controller] Updated guide for project ${project._id}`);
+                }
+            }
+        } catch (projectError) {
+            console.error('[Controller] Error updating projects:', projectError);
+            // Continue even if project update fails
+        }
+        
+        // Send notification to the student about the guide assignment
+        try {
+            const { sendNotification } = require('./notificationController');
+            await sendNotification(
+                studentId,
+                'Guide Assigned',
+                `${guide.fullName || guide.name} has been assigned as your guide.`,
+                'guide',
+                'guide'
+            );
+            console.log(`[Controller] Notification sent to student ${studentId}`);
+        } catch (notificationError) {
+            console.error('[Controller] Error sending notification:', notificationError);
+            // Continue even if notification fails
+        }
+        
+        console.log(`[Controller] Guide successfully updated for student ${studentId}`);
+        // Return a success response with the updated student information
+        res.status(200).json({
+            success: true,
+            message: 'Guide assigned successfully',
+            student: {
+                _id: student._id,
+                fullName: student.fullName,
+                email: student.email,
+                assignedGuide: student.assignedGuide
+            }
+        });
+    } catch (error) {
+        console.error('[Controller] Error in updateStudentGuide:', error);
+        res.status(500).json({ 
+            message: 'Server error', 
+            error: error.message 
+        });
+    }
 }; 
