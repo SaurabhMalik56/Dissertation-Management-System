@@ -84,7 +84,6 @@ const Dashboard = () => {
       meetingNumber: '1',
       date: '',
       time: '',
-      guideNotes: '',
       meetingType: 'online'
     }
   });
@@ -219,7 +218,6 @@ const Dashboard = () => {
           meetingNumber: '1',
           date: new Date().toISOString().split('T')[0], // Today's date as default
           time: '10:00',
-          guideNotes: '',
           meetingType: 'online'
         }
       });
@@ -259,7 +257,7 @@ const Dashboard = () => {
     e.preventDefault();
     
     try {
-      const { meetingNumber, date, time, guideNotes, meetingType } = meetingModal.formData;
+      const { meetingNumber, date, time, meetingType } = meetingModal.formData;
       
       // Format date and time for API
       const meetingDateTime = `${date}T${time}:00`;
@@ -295,7 +293,7 @@ const Dashboard = () => {
         studentId: meetingModal.studentId,
         scheduledDate: meetingDateTime,
         meetingNumber: parseInt(meetingNumber),
-        guideNotes: guideNotes || '',
+        guideNotes: '', // Empty string since the faculty will fill this later
         meetingType: meetingType,
         duration: 45 // Default duration in minutes
       };
@@ -719,7 +717,6 @@ const Dashboard = () => {
                           meetingNumber: '1',
                           date: new Date().toISOString().split('T')[0], // Today's date as default
                           time: '10:00',
-                          guideNotes: '',
                           meetingType: 'online'
                         }
                       });
@@ -831,7 +828,6 @@ const Dashboard = () => {
                                 meetingNumber: '1',
                                 date: new Date().toISOString().split('T')[0], // Today's date as default
                                 time: '10:00',
-                                guideNotes: '',
                                 meetingType: 'online'
                               }
                             });
@@ -1014,20 +1010,6 @@ const Dashboard = () => {
                     required
                   />
                 </div>
-              </div>
-              
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Guide's Notes / Summary
-                </label>
-                <textarea
-                  name="guideNotes"
-                  rows="3"
-                  className="form-textarea w-full"
-                  placeholder="Your notes on what to discuss in the meeting..."
-                  value={meetingModal.formData.guideNotes}
-                  onChange={handleMeetingInputChange}
-                ></textarea>
               </div>
               
               <div className="flex justify-end space-x-2 mt-4">
