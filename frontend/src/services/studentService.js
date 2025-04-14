@@ -350,6 +350,146 @@ const getEvaluationResults = async (token) => {
   return response.data;
 };
 
+// Get student's meetings directly from the assigned guide database
+const getMeetingsFromGuide = async (token, forceRefresh = false) => {
+  try {
+    setAuthToken(token);
+    
+    console.log('Fetching student meetings directly from guide database, forceRefresh:', forceRefresh);
+    
+    // Get the student ID
+    const userId = getUserId(token);
+    if (!userId) {
+      throw new Error('Could not determine user ID');
+    }
+    
+    // Try to get guide ID from student data
+    let guideId = null;
+    try {
+      // First try to get the user's guide from the dashboard data
+      const dashboardData = await getStudentDashboard(token);
+      if (dashboardData && dashboardData.guide && dashboardData.guide._id) {
+        guideId = dashboardData.guide._id;
+        console.log('Found guide ID from dashboard:', guideId);
+      }
+    } catch (error) {
+      console.error('Error getting guide ID from dashboard:', error);
+    }
+    
+    // Make a direct request to the meetings endpoint with filters for both student and guide (if available)
+    const endpoint = guideId 
+      ? `${API_URL}/meetings?studentId=${userId}&facultyId=${guideId}` 
+      : `${API_URL}/meetings?studentId=${userId}`;
+    
+    console.log('Fetching meetings from endpoint:', endpoint);
+    
+    const response = await axios.get(endpoint, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Cache-Control': forceRefresh ? 'no-cache' : 'default'
+      }
+    });
+    
+    if (response.data && Array.isArray(response.data)) {
+      console.log('Successfully fetched meetings from guide database:', response.data.length);
+      
+      // Process and normalize the data
+      const normalizedMeetings = response.data.map(meeting => ({
+        ...meeting,
+        id: meeting._id || meeting.id, // Ensure both id formats are present
+        _id: meeting._id || meeting.id,
+        student: meeting.studentId || meeting.student, // Ensure student ID is available in both formats
+        studentId: meeting.studentId || meeting.student,
+        // Add formatted fields for easier display
+        formattedDate: formatDate(meeting.scheduledDate || meeting.date),
+        formattedTime: formatTime(meeting.scheduledDate || meeting.date)
+      }));
+      
+      return normalizedMeetings;
+    } else {
+      console.log('API returned no meetings or unexpected format');
+      throw new Error('No meetings found in API response');
+    }
+  } catch (error) {
+    console.error('Error in getMeetingsFromGuide:', error);
+    // Return empty array on error rather than propagating the error
+    return [];
+  }
+};
+
+// Helper to format date for display
+const formatDate = (dateString) => {
+  if (!dateString) return '';
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return '';
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  } catch (error) {
+    return '';
+  }
+};
+
+// Helper to format time for display
+const formatTime = (dateString) => {
+  if (!dateString) return '';
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return '';
+    return date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  } catch (error) {
+    return '';
+  }
+};
+
+// Get detailed information for a specific meeting
+const getMeetingDetails = async (meetingId, token) => {
+  try {
+    setAuthToken(token);
+    
+    console.log('Fetching detailed meeting information for meetingId:', meetingId);
+    
+    // Make a request to get detailed meeting information
+    const response = await axios.get(`${API_URL}/meetings/${meetingId}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (response.data) {
+      console.log('Successfully fetched detailed meeting information:', response.data);
+      
+      // Normalize and enhance the data with formatted date/time
+      const meeting = {
+        ...response.data,
+        id: response.data._id || response.data.id, // Ensure both id formats are present
+        _id: response.data._id || response.data.id,
+        student: response.data.studentId || response.data.student, // Ensure student ID is available in both formats
+        studentId: response.data.studentId || response.data.student,
+        // Add formatted fields for easier display
+        formattedDate: formatDate(response.data.scheduledDate || response.data.date),
+        formattedTime: formatTime(response.data.scheduledDate || response.data.date)
+      };
+      
+      return meeting;
+    } else {
+      console.error('API returned no data for meeting details');
+      throw new Error('No data found for meeting details');
+    }
+  } catch (error) {
+    console.error('Error fetching meeting details:', error);
+    throw error;
+  }
+};
+
 const studentService = {
   getStudentDashboard,
   getStudentProjects,
@@ -359,7 +499,9 @@ const studentService = {
   updateProgress,
   getNotifications,
   submitFinalDissertation,
-  getEvaluationResults
+  getEvaluationResults,
+  getMeetingsFromGuide,
+  getMeetingDetails
 };
 
 export default studentService; 

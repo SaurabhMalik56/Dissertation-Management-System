@@ -65,6 +65,19 @@ const Dashboard = () => {
         // Log guide data to help debug
         console.log('Guide data received:', data.guide);
         
+        // Fetch meetings directly from the guide's database
+        let meetings = [];
+        try {
+          console.log('Fetching meetings from guide database');
+          meetings = await studentService.getMeetingsFromGuide(user.token);
+          console.log('Meetings fetched from guide database:', meetings.length);
+        } catch (meetingsError) {
+          console.error('Error fetching meetings from guide:', meetingsError);
+          // Fall back to regular meetings from dashboard if available
+          meetings = data.meetings || [];
+          console.log('Using fallback meetings from dashboard:', meetings.length);
+        }
+        
         // Check if guide has been reassigned
         const guideChanged = 
           dashboardData.guide && 
@@ -78,13 +91,13 @@ const Dashboard = () => {
         // Update dashboard data
         setDashboardData({
           projects: data.projects || [],
-          meetings: data.meetings || [],
+          meetings: meetings, // Use directly fetched meetings
           guide: data.guide || null,
           notifications: data.notifications || [],
           stats: {
             totalProjects: data.projects?.length || 0,
             completedProjects: data.projects?.filter(p => p.status === 'completed').length || 0,
-            upcomingMeetings: data.meetings?.filter(m => new Date(m.dateTime) > new Date()).length || 0,
+            upcomingMeetings: meetings.filter(m => new Date(m.scheduledDate || m.dateTime) > new Date()).length || 0,
             submissionsThisMonth: data.submissionsThisMonth || 0
           }
         });
@@ -124,16 +137,29 @@ const Dashboard = () => {
       setLoading(true);
       const data = await studentService.getStudentDashboard(user.token);
       
+      // Fetch meetings directly from the guide's database with force refresh
+      let meetings = [];
+      try {
+        console.log('Refreshing meetings from guide database');
+        meetings = await studentService.getMeetingsFromGuide(user.token, true);
+        console.log('Refreshed meetings from guide database:', meetings.length);
+      } catch (meetingsError) {
+        console.error('Error refreshing meetings from guide:', meetingsError);
+        // Fall back to regular meetings from dashboard if available
+        meetings = data.meetings || [];
+        console.log('Using fallback meetings from dashboard:', meetings.length);
+      }
+      
       // Update dashboard data
       setDashboardData({
         projects: data.projects || [],
-        meetings: data.meetings || [],
+        meetings: meetings,
         guide: data.guide || null,
         notifications: data.notifications || [],
         stats: {
           totalProjects: data.projects?.length || 0,
           completedProjects: data.projects?.filter(p => p.status === 'completed').length || 0,
-          upcomingMeetings: data.meetings?.filter(m => new Date(m.dateTime) > new Date()).length || 0,
+          upcomingMeetings: meetings.filter(m => new Date(m.scheduledDate || m.dateTime) > new Date()).length || 0,
           submissionsThisMonth: data.submissionsThisMonth || 0
         }
       });

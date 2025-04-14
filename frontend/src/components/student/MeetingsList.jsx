@@ -12,6 +12,8 @@ const MeetingsList = () => {
   const [selectedMeeting, setSelectedMeeting] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [newMeetingsAvailable, setNewMeetingsAvailable] = useState(false);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+  const [detailsError, setDetailsError] = useState(null);
   
   // Define the total number of required meetings (typically 4)
   const TOTAL_REQUIRED_MEETINGS = 4;
@@ -55,7 +57,23 @@ const MeetingsList = () => {
       setError(null);
       console.log('Fetching student meetings with forceRefresh:', forceRefresh);
       
-      // First check the shared meetings store
+      // First try to fetch meetings directly from the guide database
+      try {
+        console.log('Fetching meetings from guide database');
+        const guideMeetings = await studentService.getMeetingsFromGuide(user.token, forceRefresh);
+        
+        if (guideMeetings && guideMeetings.length > 0) {
+          console.log('Using meetings from guide database:', guideMeetings.length);
+          setMeetings(guideMeetings);
+          setNewMeetingsAvailable(false);
+          setLoading(false);
+          return;
+        }
+      } catch (guideError) {
+        console.error('Error fetching meetings from guide database:', guideError);
+      }
+      
+      // Then check the shared meetings store as fallback
       const sharedMeetings = checkSharedMeetingsStore();
       
       if (sharedMeetings && sharedMeetings.length > 0) {
@@ -146,6 +164,25 @@ const MeetingsList = () => {
   const handleRefresh = async () => {
     try {
       setRefreshing(true);
+      
+      // Try to get meetings directly from guide database first
+      try {
+        console.log('Refreshing meetings directly from guide database');
+        const guideMeetings = await studentService.getMeetingsFromGuide(user.token, true);
+        
+        if (guideMeetings && guideMeetings.length > 0) {
+          console.log('Refreshed meetings from guide database:', guideMeetings.length);
+          setMeetings(guideMeetings);
+          setNewMeetingsAvailable(false);
+          toast.success('Meetings updated from guide database');
+          setRefreshing(false);
+          return;
+        }
+      } catch (guideError) {
+        console.error('Error refreshing from guide database:', guideError);
+      }
+      
+      // Fall back to regular fetch if guide database fetch fails
       await fetchMeetings(true);
       toast.success('Meetings updated');
     } catch (error) {
@@ -154,16 +191,46 @@ const MeetingsList = () => {
     }
   };
 
-  const handleViewDetails = (meeting) => {
-    setSelectedMeeting(meeting);
+  const handleViewDetails = async (meeting) => {
+    try {
+      setDetailsLoading(true);
+      setDetailsError(null);
+      
+      // Get the meeting ID
+      const meetingId = meeting._id || meeting.id;
+      
+      if (!meetingId) {
+        throw new Error('Invalid meeting ID');
+      }
+      
+      console.log('Fetching details for meeting:', meetingId);
+      
+      // Fetch detailed meeting data from the server
+      const detailedMeeting = await studentService.getMeetingDetails(meetingId, user.token);
+      
+      // Set the selected meeting with detailed data
+      setSelectedMeeting(detailedMeeting);
+    } catch (error) {
+      console.error('Error fetching meeting details:', error);
+      setDetailsError('Failed to load meeting details. Please try again.');
+      // Still show the modal with the basic meeting data we already have
+      setSelectedMeeting(meeting);
+    } finally {
+      setDetailsLoading(false);
+    }
   };
 
   const closeModal = () => {
     setSelectedMeeting(null);
   };
 
-  // Format date for display
+  // Format date for display - use pre-formatted fields if available
   const formatDate = (dateString) => {
+    // Use pre-formatted date if available
+    if (typeof dateString === 'object' && dateString.formattedDate) {
+      return dateString.formattedDate;
+    }
+    
     if (!dateString) return 'No date set';
     
     try {
@@ -182,8 +249,13 @@ const MeetingsList = () => {
     }
   };
 
-  // Format time for display
+  // Format time for display - use pre-formatted fields if available
   const formatTime = (dateString) => {
+    // Use pre-formatted time if available
+    if (typeof dateString === 'object' && dateString.formattedTime) {
+      return dateString.formattedTime;
+    }
+    
     if (!dateString) return 'No time set';
     
     try {
@@ -394,79 +466,113 @@ const MeetingsList = () => {
             </div>
 
             <div className="p-6">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">{selectedMeeting.title || `Meeting ${selectedMeeting.meetingNumber}`}</h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div>
-                  <p className="text-sm text-gray-500">Meeting Number</p>
-                  <p className="font-medium">{selectedMeeting.meetingNumber || 'N/A'}</p>
+              {detailsLoading ? (
+                <div className="flex justify-center items-center py-10">
+                  <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-indigo-500"></div>
                 </div>
-                {(selectedMeeting.dateTime || selectedMeeting.scheduledDate) && (
-                  <div>
-                    <p className="text-sm text-gray-500">Date & Time</p>
-                    <p className="font-medium">{formatDate(selectedMeeting.dateTime || selectedMeeting.scheduledDate)} at {formatTime(selectedMeeting.dateTime || selectedMeeting.scheduledDate)}</p>
-                  </div>
-                )}
-                <div>
-                  <p className="text-sm text-gray-500">Status</p>
-                  <p className="font-medium">
-                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(selectedMeeting.status)}`}>
-                      {selectedMeeting.status ? selectedMeeting.status.charAt(0).toUpperCase() + selectedMeeting.status.slice(1) : 'Unknown'}
-                    </span>
-                  </p>
+              ) : detailsError ? (
+                <div className="bg-red-50 border border-red-200 text-red-800 p-4 rounded-md mb-4">
+                  <p>{detailsError}</p>
                 </div>
-                <div>
-                  <p className="text-sm text-gray-500">Location/Type</p>
-                  <p className="font-medium">{selectedMeeting.location || selectedMeeting.meetingType || 'Not specified'}</p>
-                </div>
-                <div className="md:col-span-2">
-                  <p className="text-sm text-gray-500">Faculty Guide</p>
-                  <div className="flex items-center mt-1">
-                    <div className="bg-indigo-100 p-2 rounded-full mr-3">
-                      <FaUser className="text-indigo-600" />
+              ) : (
+                <>
+                  <h2 className="text-xl font-bold text-gray-900 mb-4">{selectedMeeting.title || `Meeting ${selectedMeeting.meetingNumber}`}</h2>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                    <div>
+                      <p className="text-sm text-gray-500">Meeting Number</p>
+                      <p className="font-medium">{selectedMeeting.meetingNumber || 'N/A'}</p>
+                    </div>
+                    {(selectedMeeting.dateTime || selectedMeeting.scheduledDate) && (
+                      <div>
+                        <p className="text-sm text-gray-500">Date & Time</p>
+                        <p className="font-medium">{formatDate(selectedMeeting.dateTime || selectedMeeting.scheduledDate)} at {formatTime(selectedMeeting.dateTime || selectedMeeting.scheduledDate)}</p>
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-sm text-gray-500">Status</p>
+                      <p className="font-medium">
+                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(selectedMeeting.status)}`}>
+                          {selectedMeeting.status ? selectedMeeting.status.charAt(0).toUpperCase() + selectedMeeting.status.slice(1) : 'Unknown'}
+                        </span>
+                      </p>
                     </div>
                     <div>
-                      <p className="font-medium">{selectedMeeting.faculty?.name || selectedMeeting.guideName || 'Faculty Guide'}</p>
-                      <p className="text-sm text-gray-500">{selectedMeeting.faculty?.department || 'Department'}</p>
+                      <p className="text-sm text-gray-500">Location/Type</p>
+                      <p className="font-medium">{selectedMeeting.location || selectedMeeting.meetingType || 'Not specified'}</p>
+                    </div>
+                    {selectedMeeting.duration && (
+                      <div>
+                        <p className="text-sm text-gray-500">Duration</p>
+                        <p className="font-medium">{selectedMeeting.duration} minutes</p>
+                      </div>
+                    )}
+                    <div className="md:col-span-2">
+                      <p className="text-sm text-gray-500">Faculty Guide</p>
+                      <div className="flex items-center mt-1">
+                        <div className="bg-indigo-100 p-2 rounded-full mr-3">
+                          <FaUser className="text-indigo-600" />
+                        </div>
+                        <div>
+                          <p className="font-medium">{selectedMeeting.faculty?.name || selectedMeeting.guideName || selectedMeeting.facultyName || 'Faculty Guide'}</p>
+                          <p className="text-sm text-gray-500">{selectedMeeting.faculty?.department || selectedMeeting.department || 'Department'}</p>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </div>
 
-              {(selectedMeeting.studentNotes || selectedMeeting.agenda) && (
-                <div className="mb-6">
-                  <h4 className="font-medium text-gray-900 mb-2">Student's Points to Discuss</h4>
-                  <p className="text-gray-700 bg-gray-50 p-3 rounded">{selectedMeeting.studentNotes || selectedMeeting.agenda}</p>
-                </div>
-              )}
-
-              {(selectedMeeting.notes || selectedMeeting.facultyComments || selectedMeeting.guideNotes) && (
-                <div className="mb-6">
-                  <h4 className="font-medium text-gray-900 mb-2">Guide's Summary/Comments</h4>
-                  <p className="text-gray-700 bg-gray-50 p-3 rounded">{selectedMeeting.notes || selectedMeeting.facultyComments || selectedMeeting.guideNotes}</p>
-                </div>
-              )}
-
-              {selectedMeeting.progressStatus && (
-                <div>
-                  <h4 className="font-medium text-gray-900 mb-2">Progress Status</h4>
-                  <div className="bg-gray-50 p-3 rounded">
-                    <div className="flex justify-between mb-1">
-                      <span className="text-sm font-medium">Completion</span>
-                      <span className={`text-sm font-medium ${getProgressColor(selectedMeeting.progressValue)}`}>
-                        {selectedMeeting.progressValue}%
-                      </span>
+                  {/* Meeting content details */}
+                  {(selectedMeeting.studentPoints || selectedMeeting.studentNotes || selectedMeeting.agenda) && (
+                    <div className="mb-6">
+                      <h4 className="font-medium text-gray-900 mb-2">Student's Points to Discuss</h4>
+                      <p className="text-gray-700 bg-gray-50 p-3 rounded">{selectedMeeting.studentPoints || selectedMeeting.studentNotes || selectedMeeting.agenda}</p>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2.5">
-                      <div 
-                        className={`h-2.5 rounded-full ${selectedMeeting.progressValue < 30 ? 'bg-red-500' : 
-                          selectedMeeting.progressValue < 70 ? 'bg-yellow-500' : 'bg-green-500'}`}
-                        style={{ width: `${selectedMeeting.progressValue}%` }}
-                      ></div>
+                  )}
+
+                  {(selectedMeeting.meetingSummary || selectedMeeting.notes || selectedMeeting.facultyComments || selectedMeeting.guideNotes) && (
+                    <div className="mb-6">
+                      <h4 className="font-medium text-gray-900 mb-2">Meeting Summary</h4>
+                      <p className="text-gray-700 bg-gray-50 p-3 rounded">{selectedMeeting.meetingSummary || selectedMeeting.notes || selectedMeeting.facultyComments || selectedMeeting.guideNotes}</p>
                     </div>
-                    <p className="mt-2 text-gray-700">{selectedMeeting.progressStatus}</p>
-                  </div>
-                </div>
+                  )}
+
+                  {(selectedMeeting.guideRemarks) && (
+                    <div className="mb-6">
+                      <h4 className="font-medium text-gray-900 mb-2">Guide's Remarks</h4>
+                      <p className="text-gray-700 bg-gray-50 p-3 rounded">{selectedMeeting.guideRemarks}</p>
+                    </div>
+                  )}
+
+                  {selectedMeeting.progressStatus && (
+                    <div className="mb-6">
+                      <h4 className="font-medium text-gray-900 mb-2">Progress Status</h4>
+                      <div className="bg-gray-50 p-3 rounded">
+                        <div className="flex justify-between mb-1">
+                          <span className="text-sm font-medium">Completion</span>
+                          <span className={`text-sm font-medium ${getProgressColor(selectedMeeting.progressValue)}`}>
+                            {selectedMeeting.progressValue}%
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2.5">
+                          <div 
+                            className={`h-2.5 rounded-full ${selectedMeeting.progressValue < 30 ? 'bg-red-500' : 
+                              selectedMeeting.progressValue < 70 ? 'bg-yellow-500' : 'bg-green-500'}`}
+                            style={{ width: `${selectedMeeting.progressValue}%` }}
+                          ></div>
+                        </div>
+                        <p className="mt-2 text-gray-700">{selectedMeeting.progressStatus}</p>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Display any additional fields that may be present */}
+                  {selectedMeeting.additionalNotes && (
+                    <div className="mt-6">
+                      <h4 className="font-medium text-gray-900 mb-2">Additional Notes</h4>
+                      <p className="text-gray-700 bg-gray-50 p-3 rounded">{selectedMeeting.additionalNotes}</p>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
