@@ -24,7 +24,9 @@ const MeetingsManager = ({ studentId }) => {
     meetingNumber: '',
     scheduledDate: '',
     summary: '',
-    status: 'scheduled'
+    status: 'scheduled',
+    studentPoints: '',
+    guideRemarks: ''
   });
   
   const { user } = useSelector((state) => state.auth);
@@ -103,7 +105,9 @@ const MeetingsManager = ({ studentId }) => {
       meetingNumber: '',
       scheduledDate: '',
       summary: '',
-      status: 'scheduled'
+      status: 'scheduled',
+      studentPoints: '',
+      guideRemarks: ''
     });
     setMeetingToEdit(null);
     setShowAddForm(false);
@@ -170,7 +174,7 @@ const MeetingsManager = ({ studentId }) => {
         projectId: projectId,
         meetingNumber: meetingNum,
         scheduledDate: `${formData.scheduledDate}T10:00:00`, // Default to 10 AM if no time specified
-        guideNotes: formData.summary || '',
+        meetingSummary: formData.summary || '',
         meetingType: formData.meetingType || 'progress-review',
         duration: 45
       };
@@ -178,20 +182,81 @@ const MeetingsManager = ({ studentId }) => {
       if (meetingToEdit) {
         // Update existing meeting
         try {
-          // Use the updateMeetingStatus endpoint to update the meeting status
-          await facultyService.updateMeetingStatus(
-            meetingToEdit._id,
-            {
-              status: formData.status,
-              guideRemarks: formData.summary
-            },
-            user.token
-          );
+          // Prepare values with fallbacks - ensure they're non-empty strings
+          const summary = formData.summary || 'Meeting summary provided by guide';
+          const studentPoints = formData.studentPoints || 'Student points entered by guide';
+          const guideRemarks = formData.guideRemarks || 'Guide remarks provided';
           
-          toast.success('Meeting updated successfully');
+          // Create a raw update data object with forced string values
+          const updateData = {
+            status: formData.status,
+            guideRemarks: String(guideRemarks),
+            studentPoints: String(studentPoints),
+            meetingSummary: String(summary),
+            scheduledDate: `${formData.scheduledDate}T10:00:00`
+          };
+          
+          console.log('Sending direct meeting update:', updateData);
+          
+          // Make direct XMLHttpRequest without using service layer
+          const API_URL = 'http://localhost:5000/api';
+          const xhr = new XMLHttpRequest();
+          xhr.open('PUT', `${API_URL}/meetings/${meetingToEdit._id}/status`, true);
+          xhr.setRequestHeader('Content-Type', 'application/json');
+          xhr.setRequestHeader('Authorization', `Bearer ${user.token}`);
+          
+          // Handle response
+          xhr.onload = async function() {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              try {
+                const result = JSON.parse(xhr.responseText);
+                console.log('XHR success:', result);
+                
+                // Update local state immediately
+                setMeetings(prevMeetings => prevMeetings.map(meeting => 
+                  meeting._id === meetingToEdit._id
+                    ? { 
+                        ...meeting, 
+                        ...updateData,
+                        notes: summary,
+                        summary: summary
+                      }
+                    : meeting
+                ));
+                
+                toast.success('Meeting updated successfully');
+                
+                // Refresh meetings data
+                await refreshMeetings();
+                
+                // Close the form
+                resetForm();
+              } catch (parseError) {
+                console.error('Error parsing response:', parseError);
+                toast.error('Error updating meeting');
+              }
+            } else {
+              console.error('XHR error:', xhr.status, xhr.statusText);
+              toast.error(`Failed to update meeting: ${xhr.statusText}`);
+            }
+            
+            setLoading(false);
+          };
+          
+          // Handle network errors
+          xhr.onerror = function() {
+            console.error('Network error during meeting update');
+            toast.error('Network error during meeting update');
+            setLoading(false);
+          };
+          
+          // Send request
+          xhr.send(JSON.stringify(updateData));
+          
         } catch (updateError) {
           console.error('Error updating meeting:', updateError);
           toast.error('Failed to update meeting');
+          setLoading(false);
         }
       } else {
         // Create new meeting
@@ -230,14 +295,39 @@ const MeetingsManager = ({ studentId }) => {
     const meetingDate = new Date(meeting.scheduledDate);
     const isPastMeeting = meetingDate < new Date() && meeting.status !== 'completed';
     
-    setMeetingToEdit(meeting);
-    setFormData({
-      meetingNumber: meeting.meetingNumber.toString(),
-      scheduledDate: new Date(meeting.scheduledDate).toISOString().split('T')[0],
-      // Use guideNotes, notes, or summary depending on what's available
-      summary: meeting.guideNotes || meeting.notes || meeting.summary || '',
-      status: meeting.status
+    console.log('Editing meeting with data:', meeting);
+    
+    // Log all possible field names to help debugging
+    console.log('Meeting fields available:', {
+      meetingSummary: meeting.meetingSummary,
+      summary: meeting.summary,
+      notes: meeting.notes,
+      studentPoints: meeting.studentPoints,
+      guideRemarks: meeting.guideRemarks
     });
+    
+    setMeetingToEdit(meeting);
+    
+    // Make sure to use a consistent approach to field naming
+    setFormData({
+      meetingNumber: meeting.meetingNumber?.toString() || '1',
+      scheduledDate: new Date(meeting.scheduledDate || meeting.date).toISOString().split('T')[0],
+      // For each field, check all possible names and use appropriate fallbacks
+      summary: meeting.meetingSummary || meeting.summary || meeting.notes || '',
+      status: meeting.status || 'scheduled',
+      studentPoints: meeting.studentPoints || '',
+      guideRemarks: meeting.guideRemarks || ''
+    });
+    
+    // Force default values if fields are empty to ensure they're saved properly
+    setTimeout(() => {
+      setFormData(prev => ({
+        ...prev,
+        summary: prev.summary || 'Meeting summary will be added after completion',
+        studentPoints: prev.studentPoints || 'Student points will be discussed during the meeting',
+        guideRemarks: prev.guideRemarks || 'Guide remarks will be added after the meeting'
+      }));
+    }, 100);
     
     // Disable editing of meeting number and date for past meetings
     if (isPastMeeting) {
@@ -251,15 +341,32 @@ const MeetingsManager = ({ studentId }) => {
     try {
       setLoading(true);
       
-      await facultyService.updateMeetingStatus(
-        meetingId, 
-        { status: newStatus }, 
+      // Force a complete meeting update with explicit values for required fields
+      const updateData = {
+        status: newStatus,
+        // Force non-empty default values for all fields to ensure they're included in the update
+        studentPoints: "Points updated when status changed to " + newStatus,
+        meetingSummary: "Summary updated when status changed to " + newStatus,
+        guideRemarks: "Remarks updated when status changed to " + newStatus
+      };
+      
+      console.log('Force update for status change with data:', updateData);
+      
+      // Use direct update method with explicit XMLHttpRequest
+      await facultyService.directUpdateMeeting(
+        meetingId,
+        updateData,
         user.token
       );
       
       toast.success(`Meeting marked as ${newStatus}`);
       
-      // Refresh meetings list
+      // Immediately update local state while waiting for refresh
+      setMeetings(prevMeetings => prevMeetings.map(m => 
+        m._id === meetingId ? { ...m, ...updateData } : m
+      ));
+      
+      // Refresh meetings after the local update to ensure UI consistency
       await refreshMeetings();
     } catch (err) {
       console.error('Error updating meeting status:', err);
@@ -271,6 +378,82 @@ const MeetingsManager = ({ studentId }) => {
 
   const isPastMeeting = (date) => {
     return new Date(date) < new Date();
+  };
+
+  // Function to create missing meetings for a student
+  const createMissingMeetings = async () => {
+    if (!studentId) return;
+    
+    try {
+      setLoading(true);
+      
+      // Get existing meeting numbers
+      const existingMeetingNumbers = meetings.map(m => m.meetingNumber);
+      
+      // Determine which meetings are missing (should have meetings 1-4)
+      const missingMeetingNumbers = [1, 2, 3, 4].filter(num => !existingMeetingNumbers.includes(num));
+      
+      if (missingMeetingNumbers.length === 0) {
+        toast.info('All meetings are already scheduled.');
+        setLoading(false);
+        return;
+      }
+      
+      // Get project ID
+      let projectId = null;
+      if (meetings.length > 0) {
+        projectId = meetings[0].projectId || meetings[0].project;
+        if (typeof projectId === 'object') {
+          projectId = projectId._id;
+        }
+      }
+      
+      if (!projectId) {
+        toast.error('Could not determine project ID. Please create at least one meeting manually.');
+        setLoading(false);
+        return;
+      }
+      
+      // Get student info
+      const studentInfo = meetings.length > 0 ? 
+        (meetings[0].studentId?.fullName || meetings[0].student?.fullName || "Student") : 
+        "Student";
+      
+      // Create each missing meeting
+      const createPromises = missingMeetingNumbers.map(async (meetingNum) => {
+        // Create a minimum viable meeting
+        const meetingData = {
+          title: `Meeting ${meetingNum} with ${studentInfo}`,
+          studentId: studentId,
+          projectId: projectId,
+          meetingNumber: meetingNum,
+          scheduledDate: new Date().toISOString(), // Default to today
+          meetingSummary: '',
+          meetingType: 'progress-review',
+          duration: 45
+        };
+        
+        try {
+          return await facultyService.createMeeting(meetingData, user.token);
+        } catch (error) {
+          console.error(`Error creating meeting ${meetingNum}:`, error);
+          return null;
+        }
+      });
+      
+      const results = await Promise.all(createPromises);
+      const successCount = results.filter(r => r && r.success).length;
+      
+      toast.success(`Successfully created ${successCount} missing meetings`);
+      
+      // Refresh meetings
+      await refreshMeetings();
+    } catch (error) {
+      console.error('Error creating missing meetings:', error);
+      toast.error('Failed to create missing meetings');
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (loading && !meetings.length) {
@@ -314,6 +497,17 @@ const MeetingsManager = ({ studentId }) => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
           </button>
+          
+          {studentId && (
+            <button
+              onClick={createMissingMeetings}
+              className="flex items-center px-4 py-2 text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 rounded-md"
+              disabled={loading}
+            >
+              <FaCalendarAlt className="mr-1" /> Create Missing Meetings
+            </button>
+          )}
+          
           {canScheduleMoreMeetings && (
             <button
               onClick={() => {
@@ -375,7 +569,7 @@ const MeetingsManager = ({ studentId }) => {
               
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Summary
+                  Meeting Summary
                 </label>
                 <textarea
                   name="summary"
@@ -383,7 +577,45 @@ const MeetingsManager = ({ studentId }) => {
                   onChange={handleInputChange}
                   className="w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
                   rows="3"
-                  placeholder="Enter meeting agenda or summary..."
+                  placeholder="Enter meeting summary..."
+                  onBlur={(e) => {
+                    if (!e.target.value.trim()) {
+                      setFormData({...formData, summary: 'No summary provided'});
+                    }
+                  }}
+                ></textarea>
+              </div>
+              
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Student's Points to Discuss
+                </label>
+                <textarea
+                  name="studentPoints"
+                  value={formData.studentPoints}
+                  onChange={handleInputChange}
+                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                  rows="2"
+                  placeholder="Enter points raised by student..."
+                  onBlur={(e) => {
+                    if (!e.target.value.trim()) {
+                      setFormData({...formData, studentPoints: 'No points provided'});
+                    }
+                  }}
+                ></textarea>
+              </div>
+              
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Guide's Remarks & Suggestions
+                </label>
+                <textarea
+                  name="guideRemarks"
+                  value={formData.guideRemarks}
+                  onChange={handleInputChange}
+                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                  rows="2"
+                  placeholder="Enter guide's remarks and suggestions..."
                 ></textarea>
               </div>
               
@@ -498,11 +730,26 @@ const MeetingsManager = ({ studentId }) => {
                   </div>
                 </div>
                 
-                {(meeting.guideNotes || meeting.notes || meeting.summary) && (
+                {(meeting.meetingSummary || meeting.notes || meeting.summary) && (
                   <div className="mt-3 border-t border-gray-200 pt-3">
-                    <p className="text-sm text-gray-700">
-                      {meeting.guideNotes || meeting.notes || meeting.summary}
+                    <h5 className="text-xs font-semibold text-gray-700 mb-1">Meeting Summary:</h5>
+                    <p className="text-sm text-gray-700 mb-2">
+                      {meeting.meetingSummary || meeting.notes || meeting.summary || "No summary available"}
                     </p>
+                    
+                    {meeting.studentPoints && (
+                      <>
+                        <h5 className="text-xs font-semibold text-gray-700 mt-2 mb-1">Student's Points:</h5>
+                        <p className="text-sm text-gray-700 mb-2">{meeting.studentPoints}</p>
+                      </>
+                    )}
+                    
+                    {meeting.guideRemarks && (
+                      <>
+                        <h5 className="text-xs font-semibold text-gray-700 mt-2 mb-1">Guide's Remarks:</h5>
+                        <p className="text-sm text-gray-700">{meeting.guideRemarks}</p>
+                      </>
+                    )}
                   </div>
                 )}
                 

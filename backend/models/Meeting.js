@@ -40,7 +40,7 @@ const meetingSchema = new mongoose.Schema({
         type: String,
         default: ''
     },
-    guideNotes: {
+    meetingSummary: {
         type: String,
         default: ''
     },

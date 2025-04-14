@@ -7,7 +7,9 @@ import {
   FaCalendarAlt, 
   FaBell,
   FaSync,
-  FaTimes
+  FaTimes,
+  FaEdit,
+  FaCheck
 } from 'react-icons/fa';
 import axios from 'axios';
 import facultyService from '../../services/facultyService';
@@ -87,19 +89,57 @@ const Dashboard = () => {
       meetingType: 'online'
     }
   });
+  
+  // Edit Meeting Modal State
+  const [editMeetingModal, setEditMeetingModal] = useState({
+    isOpen: false,
+    meetingId: null,
+    formData: {
+      date: '',
+      time: '',
+      summary: '',
+      status: ''
+    }
+  });
 
   useEffect(() => {
-    // Simulate API call to fetch faculty data
-    const fetchData = async () => {
+    // Fetch data on component mount
+    fetchDashboardData();
+  }, [user]);
+
+  const fetchDashboardData = async () => {
       try {
         setIsLoading(true);
-        // In a real app, these would be actual API calls with the user's token
-        // const response = await axios.get('/api/faculty/dashboard', {
-        //   headers: { Authorization: `Bearer ${user.token}` }
-        // });
-        
-        // For now, use mock data
-        setTimeout(() => {
+      setError(null);
+
+      if (!user || !user.token) {
+        console.warn('User authentication required');
+        setIsLoading(false);
+        return;
+      }
+
+      // Call the facultyService to get dashboard data
+      const data = await facultyService.getDashboardData(user.token);
+      
+      // Update state with fetched data
+      setStudents(data.students || []);
+      setMeetings(data.meetings || []);
+      setStats(data.stats || {
+        totalStudents: 0,
+        activeProjects: 0,
+        upcomingMeetings: 0,
+        pendingRequests: 0
+      });
+      
+      console.log(`Fetched ${data.students?.length || 0} students and ${data.meetings?.length || 0} meetings`);
+      
+    } catch (err) {
+      console.error('Error fetching dashboard data:', err);
+      setError('Failed to fetch dashboard data: ' + (err.message || 'Unknown error'));
+      
+      // Fallback to mock data in development environment
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Using mock data as fallback');
           setStudents([
             { id: 1, name: 'John Doe', rollNo: 'CS001', project: 'Machine Learning in Healthcare', progress: 65 },
             { id: 2, name: 'Jane Smith', rollNo: 'CS002', project: 'Blockchain Applications', progress: 20 },
@@ -125,17 +165,11 @@ const Dashboard = () => {
             upcomingMeetings: 2,
             pendingRequests: 1
           });
-          
-          setIsLoading(false);
-        }, 1000);
-      } catch (err) {
-        setError('Failed to fetch dashboard data');
+      }
+    } finally {
         setIsLoading(false);
       }
     };
-
-    fetchData();
-  }, [user]);
 
   useEffect(() => {
     if (user) {
@@ -165,12 +199,11 @@ const Dashboard = () => {
     }
   };
 
-  const handleScheduleMeeting = async (studentId) => {
+  const handleScheduleMeeting = async (studentId, projectId, meetingNumber) => {
     try {
       console.log('Scheduling meeting for student ID:', studentId);
       
-      // Instead of trying to find the student in the local state,
-      // fetch the student details directly from the API
+      // Find student info from the available data
       let studentInfo = null;
       
       // Check if we already have the student data in our API response
@@ -189,7 +222,7 @@ const Dashboard = () => {
         }
       }
       
-      // If not found in API response, check our mock data
+      // If not found in API response, check our students array
       if (!studentInfo) {
         const mockStudent = students.find(s => s.id === studentId || s._id === studentId);
         if (mockStudent) {
@@ -213,9 +246,9 @@ const Dashboard = () => {
         isOpen: true,
         studentId: studentId,
         studentName: studentInfo.fullName,
-        projectId: null,
+        projectId: projectId,
         formData: {
-          meetingNumber: '1',
+          meetingNumber: meetingNumber ? meetingNumber.toString() : '1',
           date: new Date().toISOString().split('T')[0], // Today's date as default
           time: '10:00',
           meetingType: 'online'
@@ -257,10 +290,16 @@ const Dashboard = () => {
     e.preventDefault();
     
     try {
-      const { meetingNumber, date, time, meetingType } = meetingModal.formData;
+      setIsLoading(true);
       
-      // Format date and time for API
-      const meetingDateTime = `${date}T${time}:00`;
+      // Extract form data
+      const { meetingNumber, date, time, summary, meetingType } = meetingModal.formData;
+      
+      // Format date for API
+      const meetingDateTime = `${date}T${time || '10:00:00'}`;
+      
+      // Create meeting title
+      const meetingTitle = `Meeting ${meetingNumber} with ${meetingModal.studentName}`;
       
       // Get faculty ID
       const facultyId = getUserId();
@@ -278,13 +317,12 @@ const Dashboard = () => {
         if (student && (student.project?._id || student.project?.id)) {
           projectId = student.project._id || student.project.id;
         } else {
-          // If no project ID found, create a temporary one - ideally this would be handled server-side
-          projectId = 'temp_project_' + Date.now();
+          // For mock data, use a valid ObjectId format (24 hex chars)
+          // This will pass MongoDB's ObjectId validation
+          projectId = '507f1f77bcf86cd799439011';
+          console.log('Using mock project ID in valid ObjectId format:', projectId);
         }
       }
-      
-      // Create meeting title
-      const meetingTitle = `Meeting ${meetingNumber} with ${meetingModal.studentName}`;
       
       // Prepare meeting data for API
       const meetingData = {
@@ -293,7 +331,7 @@ const Dashboard = () => {
         studentId: meetingModal.studentId,
         scheduledDate: meetingDateTime,
         meetingNumber: parseInt(meetingNumber),
-        guideNotes: '', // Empty string since the faculty will fill this later
+        meetingSummary: summary || '', // Use summary if provided, otherwise empty string
         meetingType: meetingType,
         duration: 45 // Default duration in minutes
       };
@@ -301,7 +339,6 @@ const Dashboard = () => {
       console.log('Scheduling meeting with data:', meetingData);
       
       // Call the API via service
-      setIsLoading(true);
       const result = await facultyService.createMeeting(meetingData, user.token);
       setIsLoading(false);
       
@@ -376,7 +413,7 @@ const Dashboard = () => {
 
   const handleMeetingAction = (meetingId, action) => {
     try {
-      console.log(`${action} meeting ID: ${meetingId}`);
+    console.log(`${action} meeting ID: ${meetingId}`);
       
       // Find the meeting in our state
       const meetingIndex = meetings.findIndex(m => m.id === meetingId);
@@ -477,6 +514,178 @@ const Dashboard = () => {
     }
   };
 
+  const handleEditMeeting = (meetingId) => {
+    // Find meeting in the state
+    const meeting = meetings.find(m => m.id === meetingId || m._id === meetingId);
+    
+    if (!meeting) {
+      console.error(`Meeting with ID ${meetingId} not found`);
+      toast.error('Meeting not found');
+      return;
+    }
+    
+    // Format date and time for form
+    const scheduledDate = new Date(meeting.scheduledDate || meeting.date);
+    const formattedDate = scheduledDate.toISOString().split('T')[0];
+    const formattedTime = scheduledDate.toTimeString().split(' ')[0].substring(0, 5);  // HH:MM format
+    
+    // Open the edit meeting modal
+    setEditMeetingModal({
+      isOpen: true,
+      meetingId: meetingId,
+      meetingNumber: meeting.meetingNumber,
+      studentName: meeting.studentName || (typeof meeting.student === 'object' ? meeting.student.fullName : 'Student'),
+      formData: {
+        date: formattedDate,
+        time: formattedTime,
+        summary: meeting.meetingSummary || meeting.notes || meeting.summary || '',
+        status: meeting.status || 'scheduled',
+        studentPoints: meeting.studentPoints || '',
+        guideRemarks: meeting.guideRemarks || ''
+      }
+    });
+  };
+
+  const handleEditMeetingInputChange = (e) => {
+    const { name, value } = e.target;
+    setEditMeetingModal(prev => ({
+      ...prev,
+      formData: {
+        ...prev.formData,
+        [name]: value
+      }
+    }));
+  };
+
+  const handleSubmitEditMeeting = async (e) => {
+    e.preventDefault();
+    
+    try {
+      setIsLoading(true);
+      
+      // Extract form data
+      const { date, time, summary, status, studentPoints, guideRemarks } = editMeetingModal.formData;
+      
+      // Format date for API
+      const meetingDateTime = `${date}T${time || '09:00:00'}`;
+      
+      // Create a simplified update data object with the exact fields that match the MongoDB model
+      const updateData = {
+        status: status,
+        meetingSummary: summary || '',
+        studentPoints: studentPoints || '',
+        guideRemarks: guideRemarks || '',
+        scheduledDate: meetingDateTime
+      };
+      
+      console.log('Sending direct update to API:', updateData);
+      
+      // Use the direct update method instead of the previous approach
+      const result = await facultyService.directUpdateMeeting(
+        editMeetingModal.meetingId,
+        updateData,
+        user.token
+      );
+      
+      setIsLoading(false);
+      
+      if (result) {
+        // Close the modal
+        setEditMeetingModal(prev => ({ ...prev, isOpen: false }));
+        
+        // Show success message
+        toast.success('Meeting updated successfully');
+        
+        // Update the meeting in the local state
+        const updatedMeetings = meetings.map(m => 
+          (m.id === editMeetingModal.meetingId || m._id === editMeetingModal.meetingId) 
+            ? { 
+                ...m, 
+                ...updateData,
+                date: meetingDateTime // Update both date fields for compatibility
+              } 
+            : m
+        );
+        
+        setMeetings(updatedMeetings);
+      } else {
+        // Show error message
+        toast.error('Failed to update meeting');
+      }
+    } catch (error) {
+      console.error('Error updating meeting:', error);
+      toast.error(error.message || 'Failed to update meeting');
+      setIsLoading(false);
+    }
+  };
+
+  const handleCompleteMeeting = async (meetingId) => {
+    try {
+      // Find the meeting in our state
+      const meeting = meetings.find(m => m.id === meetingId || m._id === meetingId);
+      
+      if (!meeting) {
+        console.error(`Meeting with ID ${meetingId} not found`);
+        toast.error('Meeting not found');
+        return;
+      }
+      
+      // Ask for confirmation
+      if (!window.confirm(`Are you sure you want to mark "${meeting.title || 'Meeting ' + meeting.meetingNumber}" as completed?`)) {
+        return;
+      }
+      
+      // Call the API via service
+      setIsLoading(true);
+      
+      // Update the meeting via facultyService
+      const result = await facultyService.updateMeetingStatus(
+        meetingId,
+        {
+          status: 'completed'
+        },
+        user.token
+      );
+      
+      setIsLoading(false);
+      
+      if (result) {
+        // Show success message
+        toast.success('Meeting marked as completed');
+        
+        // Update the meeting in the local state
+        const updatedMeetings = meetings.map(m => 
+          (m.id === meetingId || m._id === meetingId) 
+            ? { ...m, status: 'completed' } 
+            : m
+        );
+        
+        setMeetings(updatedMeetings);
+        
+        // Update stats
+        setStats(prevStats => ({
+          ...prevStats,
+          upcomingMeetings: Math.max(0, prevStats.upcomingMeetings - 1)
+        }));
+        
+        // Refresh meetings data
+        facultyService.clearCache();
+        
+      } else {
+        // Show error message
+        toast.error('Failed to complete meeting');
+      }
+    } catch (error) {
+      console.error('Error completing meeting:', error);
+      toast.error(error.message || 'Failed to complete meeting');
+      setIsLoading(false);
+    }
+  };
+
+  const closeEditMeetingModal = () => {
+    setEditMeetingModal(prev => ({ ...prev, isOpen: false }));
+  };
+
   return (
     <div className="space-y-6">
       {/* Welcome section with stats */}
@@ -495,7 +704,7 @@ const Dashboard = () => {
           
           {/* Stats cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
-            <div className="bg-white p-4 rounded-lg border border-indigo-100 shadow-sm">
+            <div key="stats-students" className="bg-white p-4 rounded-lg border border-indigo-100 shadow-sm">
               <div className="flex items-center">
                 <div className="p-3 rounded-full bg-indigo-50 text-indigo-600">
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -509,7 +718,7 @@ const Dashboard = () => {
               </div>
             </div>
             
-            <div className="bg-white p-4 rounded-lg border border-blue-100 shadow-sm">
+            <div key="stats-projects" className="bg-white p-4 rounded-lg border border-blue-100 shadow-sm">
               <div className="flex items-center">
                 <div className="p-3 rounded-full bg-blue-50 text-blue-600">
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -523,7 +732,7 @@ const Dashboard = () => {
               </div>
             </div>
             
-            <div className="bg-white p-4 rounded-lg border border-green-100 shadow-sm">
+            <div key="stats-meetings" className="bg-white p-4 rounded-lg border border-green-100 shadow-sm">
               <div className="flex items-center">
                 <div className="p-3 rounded-full bg-green-50 text-green-600">
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -537,7 +746,7 @@ const Dashboard = () => {
               </div>
             </div>
             
-            <div className="bg-white p-4 rounded-lg border border-yellow-100 shadow-sm">
+            <div key="stats-pending" className="bg-white p-4 rounded-lg border border-yellow-100 shadow-sm">
               <div className="flex items-center">
                 <div className="p-3 rounded-full bg-yellow-50 text-yellow-600">
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -559,7 +768,7 @@ const Dashboard = () => {
         <div className="card-header">
           <div className="tab-container">
             <ul className="tab-list">
-              <li className="mr-2">
+              <li key="tab-overview" className="mr-2">
                 <button
                   className={`tab ${activeTab === 'overview' ? 'tab-active' : 'tab-inactive'}`}
                   onClick={() => setActiveTab('overview')}
@@ -567,7 +776,7 @@ const Dashboard = () => {
                   Overview
                 </button>
               </li>
-              <li className="mr-2">
+              <li key="tab-students" className="mr-2">
                 <button
                   className={`tab ${activeTab === 'students' ? 'tab-active' : 'tab-inactive'}`}
                   onClick={() => setActiveTab('students')}
@@ -575,7 +784,7 @@ const Dashboard = () => {
                   Students
                 </button>
               </li>
-              <li className="mr-2">
+              <li key="tab-projects" className="mr-2">
                 <button
                   className={`tab ${activeTab === 'projects' ? 'tab-active' : 'tab-inactive'}`}
                   onClick={() => setActiveTab('projects')}
@@ -583,7 +792,7 @@ const Dashboard = () => {
                   Projects
                 </button>
               </li>
-              <li className="mr-2">
+              <li key="tab-meetings" className="mr-2">
                 <button
                   className={`tab ${activeTab === 'meetings' ? 'tab-active' : 'tab-inactive'}`}
                   onClick={() => setActiveTab('meetings')}
@@ -616,21 +825,25 @@ const Dashboard = () => {
                     <h3 className="text-lg font-medium text-gray-700 mb-3">Today's Schedule</h3>
                     <div className="space-y-4">
                       {meetings.filter(m => m.status === 'scheduled').slice(0, 2).map(meeting => (
-                        <div key={meeting.id} className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                        <div key={meeting.id || meeting._id} className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
                           <div className="flex flex-col md:flex-row md:items-center md:justify-between">
                             <div>
                               <h4 className="font-medium text-gray-800">{meeting.title}</h4>
-                              <p className="text-sm text-gray-500">With {meeting.student}</p>
+                              <p className="text-sm text-gray-500">
+                                With {typeof meeting.student === 'object' ? 
+                                  meeting.student.fullName || 'Student' : 
+                                  meeting.studentName || meeting.student || 'Student'}
+                              </p>
                             </div>
                             <div className="mt-2 md:mt-0 flex flex-col md:flex-row md:items-center">
                               <span className="badge badge-primary mb-2 md:mb-0 md:mr-2">{formatDate(meeting.date)}</span>
                               <div className="space-x-2">
-                                <button 
-                                  onClick={() => handleMeetingAction(meeting.id, 'start')}
-                                  className="btn btn-primary btn-sm"
-                                >
-                                  Start Meeting
-                                </button>
+                              <button 
+                                onClick={() => handleMeetingAction(meeting.id, 'start')}
+                                className="btn btn-primary btn-sm"
+                              >
+                                Start Meeting
+                              </button>
                                 <button 
                                   onClick={() => handleMeetingAction(meeting.id, 'complete')}
                                   className="btn btn-success btn-sm"
@@ -654,12 +867,18 @@ const Dashboard = () => {
                     <h3 className="text-lg font-medium text-gray-700 mb-3">Student Progress</h3>
                     <div className="space-y-4">
                       {students.map(student => (
-                        <div key={student.id} className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                        <div key={student.id || student._id} className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
                           <div className="flex flex-col md:flex-row md:items-center md:justify-between">
                             <div>
-                              <h4 className="font-medium text-gray-800">{student.name}</h4>
-                              <p className="text-sm text-gray-500">{student.project}</p>
-                              <p className="text-xs text-gray-400">Roll No: {student.rollNo}</p>
+                              <h4 className="font-medium text-gray-800">
+                                {student.fullName || student.name || 'Student'}
+                              </h4>
+                              <p className="text-sm text-gray-500">
+                                {typeof student.project === 'object' 
+                                  ? student.project.title || 'Project'
+                                  : student.project || 'Project'}
+                              </p>
+                              <p className="text-xs text-gray-400">Roll No: {student.rollNo || student.rollNumber || 'N/A'}</p>
                             </div>
                             <div className="mt-3 md:mt-0">
                               <div className="flex items-center">
@@ -760,9 +979,13 @@ const Dashboard = () => {
                       </thead>
                       <tbody>
                         {projects.map(project => (
-                          <tr key={project.id}>
+                          <tr key={project.id || project._id}>
                             <td className="font-medium text-gray-800">{project.title}</td>
-                            <td>{project.student}</td>
+                            <td>
+                              {typeof project.student === 'object' 
+                                ? project.student.fullName || project.student.name || 'Student'
+                                : project.student || 'Student'}
+                            </td>
                             <td>
                               <div className="flex items-center">
                                 <div className="w-32 bg-gray-200 rounded-full h-2 mr-2">
@@ -803,118 +1026,190 @@ const Dashboard = () => {
                 <div>
                   <div className="flex justify-between items-center mb-6">
                     <h2 className="text-xl font-semibold text-gray-800">Meeting Schedule</h2>
-                    <div>
+                    <div className="flex items-center gap-2">
                       <select className="form-input mr-2">
-                        <option>All Meetings</option>
-                        <option>Scheduled</option>
-                        <option>Completed</option>
-                        <option>Pending</option>
+                        <option value="all">All Meetings</option>
+                        <option value="not-conducted">Not Conducted</option>
+                        <option value="completed">Completed</option>
+                        <option value="rescheduled">Rescheduled</option>
                       </select>
                       <button 
-                        className="btn btn-primary"
                         onClick={() => {
-                          // If we have students, open modal with first student
-                          if (students.length > 0) {
-                            const firstStudent = students[0];
-                            const studentId = firstStudent._id || firstStudent.id;
-                            const studentName = firstStudent.fullName || firstStudent.name;
-                            
-                            setMeetingModal({
-                              isOpen: true,
-                              studentId: studentId,
-                              studentName: studentName,
-                              projectId: null,
-                              formData: {
-                                meetingNumber: '1',
-                                date: new Date().toISOString().split('T')[0], // Today's date as default
-                                time: '10:00',
-                                meetingType: 'online'
-                              }
-                            });
-                          } else {
-                            toast.warning('No students available to schedule meetings with');
-                          }
+                          setIsLoading(true);
+                          facultyService.clearCache();
+                          fetchDashboardData().then(() => {
+                            toast.success("Meetings refreshed successfully");
+                          }).catch(err => {
+                            toast.error("Failed to refresh meetings");
+                          });
                         }}
+                        title="Refresh meetings list"
+                        className="btn btn-outline-secondary"
                       >
-                        Schedule New
+                        <FaSync className={isLoading ? "animate-spin" : ""} />
                       </button>
                     </div>
                   </div>
                   
-                  <div className="table-container">
-                    <table className="table">
+                  {isLoading ? (
+                    <div className="flex justify-center items-center h-64">
+                      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
+                    </div>
+                  ) : error ? (
+                    <div className="bg-red-50 p-4 rounded-md">
+                      <p className="text-red-800">{error}</p>
+                      <button 
+                        onClick={fetchDashboardData}
+                        className="mt-2 text-sm text-indigo-600 hover:text-indigo-800"
+                      >
+                        Try again
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Group meetings by student */}
+                      <div className="space-y-8">
+                        {students.map(student => {
+                          // Find student's meetings from the meetings array
+                          const studentId = student._id || student.id;
+                          const studentName = student.fullName || student.name;
+                          
+                          return (
+                            <div key={studentId} className="border rounded-lg overflow-hidden">
+                              <div className="bg-gray-50 p-4 border-b flex justify-between items-center">
+                                <div>
+                                  <h3 className="font-medium text-lg">{studentName}</h3>
+                                  <p className="text-sm text-gray-500">{student.rollNo || student.rollNumber} • {student.project?.title || student.project}</p>
+                                </div>
+                                <button 
+                                  onClick={() => handleScheduleMeeting(studentId)}
+                                  className="btn btn-primary btn-sm"
+                                >
+                                  Schedule Meeting
+                                </button>
+                              </div>
+                              
+                              <div className="p-4">
+                                <div className="overflow-x-auto">
+                                  <table className="min-w-full divide-y divide-gray-200">
                       <thead>
                         <tr>
-                          <th>Meeting Title</th>
-                          <th>Student</th>
-                          <th>Date & Time</th>
-                          <th>Status</th>
-                          <th>Actions</th>
+                                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider w-1/6">Meeting</th>
+                                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider w-1/6">Date</th>
+                                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider w-2/6">Summary</th>
+                                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider w-1/6">Status</th>
+                                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider w-1/6">Actions</th>
                         </tr>
                       </thead>
-                      <tbody>
-                        {meetings.map(meeting => (
-                          <tr key={meeting.id}>
-                            <td className="font-medium text-gray-800">{meeting.title}</td>
-                            <td>{meeting.student}</td>
-                            <td>{formatDate(meeting.date)}</td>
-                            <td>
-                              <span className={`badge ${getStatusBadgeClass(meeting.status)}`}>
-                                {meeting.status.charAt(0).toUpperCase() + meeting.status.slice(1)}
+                                    <tbody className="divide-y divide-gray-200">
+                                      {/* Generate rows for meetings 1-4 */}
+                                      {[1, 2, 3, 4].map(meetingNumber => {
+                                        // Try to find existing meeting data
+                                        const meeting = meetings.find(m => 
+                                          (m.studentId === studentId || 
+                                          (typeof m.studentId === 'object' && m.studentId?._id === studentId) || 
+                                          m.student === studentId || 
+                                          (typeof m.student === 'object' && m.student?._id === studentId)) && 
+                                          parseInt(m.meetingNumber) === meetingNumber
+                                        );
+                                        
+                                        // Determine meeting status
+                                        const status = meeting ? meeting.status : 'not-conducted';
+                                        
+                                        return (
+                                          <tr key={`${studentId}-meeting-${meetingNumber}`}>
+                                            <td className="px-4 py-3 whitespace-nowrap">
+                                              <span className="font-medium">Meeting {meetingNumber}</span>
+                                            </td>
+                                            <td className="px-4 py-3 whitespace-nowrap">
+                                              {meeting?.scheduledDate ? formatDate(meeting.scheduledDate) : 
+                                               meeting?.date ? formatDate(meeting.date) : 
+                                               "Not scheduled"}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                              <div className="truncate max-w-xs">
+                                                {meeting?.meetingSummary || meeting?.summary || 
+                                                  meeting?.notes || "No summary available"}
+                                                {meeting?.studentPoints && (
+                                                  <div className="mt-1 text-xs text-gray-500">
+                                                    <strong>Student Points:</strong> {meeting.studentPoints}
+                                                  </div>
+                                                )}
+                                                {meeting?.guideRemarks && (
+                                                  <div className="mt-1 text-xs text-gray-500">
+                                                    <strong>Guide Remarks:</strong> {meeting.guideRemarks}
+                                                  </div>
+                                                )}
+                                              </div>
+                                            </td>
+                                            <td className="px-4 py-3 whitespace-nowrap">
+                                              <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                                status === 'completed' ? 'bg-green-100 text-green-800' : 
+                                                status === 'scheduled' || status === 'not-conducted' ? 'bg-yellow-100 text-yellow-800' :
+                                                status === 'rescheduled' ? 'bg-blue-100 text-blue-800' :
+                                                status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                                                'bg-gray-100 text-gray-800'
+                                              }`}>
+                                                {status === 'scheduled' ? 'Not Conducted' : 
+                                                 status.charAt(0).toUpperCase() + status.slice(1)}
                               </span>
                             </td>
-                            <td>
-                              {meeting.status === 'scheduled' && (
-                                <>
+                                            <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
+                                              {status === 'not-conducted' || !meeting ? (
                                   <button 
-                                    onClick={() => handleMeetingAction(meeting.id, 'start')}
+                                                  onClick={() => handleScheduleMeeting(studentId, null, meetingNumber)}
                                     className="text-indigo-600 hover:text-indigo-900 mr-2"
                                   >
-                                    Start
+                                                  Schedule
+                                  </button>
+                                              ) : status === 'scheduled' ? (
+                                                <div className="flex space-x-2">
+                                  <button 
+                                                    onClick={() => handleEditMeeting(meeting.id || meeting._id)}
+                                                    className="text-blue-600 hover:text-blue-900"
+                                  >
+                                                    Update
                                   </button>
                                   <button 
-                                    onClick={() => handleMeetingAction(meeting.id, 'cancel')}
-                                    className="text-red-600 hover:text-red-900"
+                                                    onClick={() => handleCompleteMeeting(meeting.id || meeting._id)}
+                                                    className="text-green-600 hover:text-green-900"
                                   >
-                                    Cancel
+                                                    Complete
                                   </button>
-                                </>
-                              )}
-                              {meeting.status === 'pending' && (
-                                <>
+                                                </div>
+                                              ) : (
                                   <button 
-                                    onClick={() => handleMeetingAction(meeting.id, 'confirm')}
-                                    className="text-green-600 hover:text-green-900 mr-2"
-                                  >
-                                    Confirm
-                                  </button>
-                                  <button 
-                                    onClick={() => handleMeetingAction(meeting.id, 'reject')}
-                                    className="text-red-600 hover:text-red-900"
-                                  >
-                                    Reject
-                                  </button>
-                                </>
-                              )}
-                              {meeting.status === 'completed' && (
-                                <button 
-                                  onClick={() => handleMeetingAction(meeting.id, 'view-notes')}
-                                  className="text-gray-600 hover:text-gray-900"
-                                >
-                                  View Notes
+                                                  onClick={() => handleEditMeeting(meeting.id || meeting._id)}
+                                                  className="text-blue-600 hover:text-blue-900"
+                                                >
+                                                  Edit
                                 </button>
                               )}
                             </td>
                           </tr>
-                        ))}
+                                        );
+                                      })}
                       </tbody>
                     </table>
                   </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      
+                      {students.length === 0 && (
+                        <div className="text-center py-10">
+                          <p className="text-gray-500">No assigned students found.</p>
                 </div>
               )}
             </>
           )}
         </div>
+              )}
+            </>
+          )}
+      </div>
       </div>
       
       {/* Meeting Scheduling Modal */}
@@ -1025,6 +1320,125 @@ const Dashboard = () => {
                   className="btn btn-primary"
                 >
                   Schedule Meeting
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      
+      {/* Edit Meeting Modal */}
+      {editMeetingModal.isOpen && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-lg max-w-md w-full mx-4">
+            <div className="p-4 border-b border-gray-200 flex justify-between items-center">
+              <h3 className="text-lg font-medium text-gray-900">Edit Meeting</h3>
+              <button 
+                onClick={closeEditMeetingModal}
+                className="text-gray-400 hover:text-gray-500"
+              >
+                <FaTimes />
+              </button>
+            </div>
+            
+            <form onSubmit={handleSubmitEditMeeting} className="p-4">
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Date
+                </label>
+                <input
+                  type="date"
+                  name="date"
+                  className="form-input w-full"
+                  value={editMeetingModal.formData.date}
+                  onChange={handleEditMeetingInputChange}
+                  required
+                />
+              </div>
+              
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Time
+                </label>
+                <input
+                  type="time"
+                  name="time"
+                  className="form-input w-full"
+                  value={editMeetingModal.formData.time}
+                  onChange={handleEditMeetingInputChange}
+                  required
+                />
+              </div>
+              
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Meeting Summary</label>
+                <textarea
+                  name="summary"
+                  value={editMeetingModal.formData.summary}
+                  onChange={handleEditMeetingInputChange}
+                  rows="3"
+                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="Enter meeting summary"
+                ></textarea>
+              </div>
+              
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Student's Points to Discuss</label>
+                <textarea
+                  name="studentPoints"
+                  value={editMeetingModal.formData.studentPoints}
+                  onChange={handleEditMeetingInputChange}
+                  rows="2"
+                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="Enter student's discussion points"
+                ></textarea>
+              </div>
+              
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Guide's Remarks & Suggestions</label>
+                <textarea
+                  name="guideRemarks"
+                  value={editMeetingModal.formData.guideRemarks}
+                  onChange={handleEditMeetingInputChange}
+                  rows="2"
+                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="Enter your remarks and suggestions"
+                ></textarea>
+              </div>
+              
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Status
+                </label>
+                <select
+                  name="status"
+                  className="form-select w-full"
+                  value={editMeetingModal.formData.status}
+                  onChange={handleEditMeetingInputChange}
+                  required
+                >
+                  <option value="scheduled">Scheduled</option>
+                  <option value="completed">Completed</option>
+                  <option value="cancelled">Cancelled</option>
+                  <option value="not-conducted">Not Conducted</option>
+                  <option value="rescheduled">Rescheduled</option>
+                  <option value="rejected">Rejected</option>
+                </select>
+              </div>
+              
+              <div className="flex justify-end space-x-2 mt-4">
+                <button
+                  type="button"
+                  onClick={closeEditMeetingModal}
+                  className="btn btn-secondary"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                >
+                  Update Meeting
                 </button>
               </div>
             </form>

@@ -249,90 +249,90 @@ const Dashboard = () => {
         {/* Stats Cards */}
         {activeView === 'overview' && (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
               <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300">
-                <div className="flex items-center">
-                  <div className="p-3 rounded-full bg-green-100 text-green-500 mr-4">
-                    <FaBook className="text-xl" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500 font-medium">Total Projects</p>
-                    <p className="text-2xl font-bold">{dashboardData.stats.totalProjects}</p>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300">
-                <div className="flex items-center">
-                  <div className="p-3 rounded-full bg-blue-100 text-blue-500 mr-4">
-                    <FaCheckCircle className="text-xl" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500 font-medium">Completed</p>
-                    <p className="text-2xl font-bold">{dashboardData.stats.completedProjects}</p>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300">
-                <div className="flex items-center">
-                  <div className="p-3 rounded-full bg-purple-100 text-purple-500 mr-4">
-                    <FaCalendarAlt className="text-xl" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500 font-medium">Upcoming Meetings</p>
-                    <p className="text-2xl font-bold">{dashboardData.stats.upcomingMeetings}</p>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300">
-                <div className="flex items-center">
-                  <div className="p-3 rounded-full bg-yellow-100 text-yellow-500 mr-4">
-                    <FaFileAlt className="text-xl" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500 font-medium">Submissions</p>
-                    <p className="text-2xl font-bold">{dashboardData.stats.submissionsThisMonth} <span className="text-sm text-gray-500">this month</span></p>
-                  </div>
-                </div>
-              </div>
+          <div className="flex items-center">
+            <div className="p-3 rounded-full bg-green-100 text-green-500 mr-4">
+              <FaBook className="text-xl" />
             </div>
-            
+            <div>
+              <p className="text-sm text-gray-500 font-medium">Total Projects</p>
+              <p className="text-2xl font-bold">{dashboardData.stats.totalProjects}</p>
+            </div>
+          </div>
+        </div>
+        
+              <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300">
+          <div className="flex items-center">
+            <div className="p-3 rounded-full bg-blue-100 text-blue-500 mr-4">
+              <FaCheckCircle className="text-xl" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-500 font-medium">Completed</p>
+              <p className="text-2xl font-bold">{dashboardData.stats.completedProjects}</p>
+            </div>
+          </div>
+        </div>
+        
+              <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300">
+          <div className="flex items-center">
+            <div className="p-3 rounded-full bg-purple-100 text-purple-500 mr-4">
+              <FaCalendarAlt className="text-xl" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-500 font-medium">Upcoming Meetings</p>
+              <p className="text-2xl font-bold">{dashboardData.stats.upcomingMeetings}</p>
+            </div>
+          </div>
+        </div>
+        
+              <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300">
+          <div className="flex items-center">
+            <div className="p-3 rounded-full bg-yellow-100 text-yellow-500 mr-4">
+              <FaFileAlt className="text-xl" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-500 font-medium">Submissions</p>
+              <p className="text-2xl font-bold">{dashboardData.stats.submissionsThisMonth} <span className="text-sm text-gray-500">this month</span></p>
+            </div>
+          </div>
+        </div>
+      </div>
+
             {/* Quick Actions Section */}
             <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg shadow-md p-6 mb-8">
               <h3 className="text-white text-lg font-semibold mb-4">Quick Actions</h3>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <button 
+          <button
                   onClick={() => setActiveView('proposal')}
                   className="bg-white bg-opacity-20 hover:bg-opacity-30 transition-colors duration-200 rounded-lg p-4 text-white text-center"
                 >
                   <FaFileAlt className="text-xl mx-auto mb-2" />
                   <span className="text-sm">Submit Proposal</span>
-                </button>
-                <button 
+          </button>
+          <button
                   onClick={() => setActiveView('meetings')}
                   className="bg-white bg-opacity-20 hover:bg-opacity-30 transition-colors duration-200 rounded-lg p-4 text-white text-center"
                 >
                   <FaCalendarAlt className="text-xl mx-auto mb-2" />
                   <span className="text-sm">View Meetings</span>
-                </button>
-                <button 
+          </button>
+          <button
                   onClick={() => setActiveView('progress')}
                   className="bg-white bg-opacity-20 hover:bg-opacity-30 transition-colors duration-200 rounded-lg p-4 text-white text-center"
                 >
                   <FaChartLine className="text-xl mx-auto mb-2" />
                   <span className="text-sm">Update Progress</span>
-                </button>
-                <button 
+          </button>
+          <button
                   onClick={() => setActiveView('submission')}
                   className="bg-white bg-opacity-20 hover:bg-opacity-30 transition-colors duration-200 rounded-lg p-4 text-white text-center"
                 >
                   <FaGraduationCap className="text-xl mx-auto mb-2" />
                   <span className="text-sm">Final Submission</span>
-                </button>
-              </div>
-            </div>
+                    </button>
+                  </div>
+                </div>
           </>
         )}
 
@@ -346,18 +346,18 @@ const Dashboard = () => {
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2">
                   {/* Current Project with Timeline */}
-                  <div className="mb-6">
+            <div className="mb-6">
                     <div className="flex justify-between items-center mb-2">
                       <h3 className="text-lg font-medium">Current Project</h3>
                       {dashboardData.projects.length > 0 && (
-                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                          dashboardData.projects[0].status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                          dashboardData.projects[0].status === 'approved' ? 'bg-green-100 text-green-800' :
-                          dashboardData.projects[0].status === 'rejected' ? 'bg-red-100 text-red-800' :
-                          'bg-blue-100 text-blue-800'
-                        }`}>
-                          {dashboardData.projects[0].status.charAt(0).toUpperCase() + dashboardData.projects[0].status.slice(1)}
-                        </span>
+                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                      dashboardData.projects[0].status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                      dashboardData.projects[0].status === 'approved' ? 'bg-green-100 text-green-800' :
+                      dashboardData.projects[0].status === 'rejected' ? 'bg-red-100 text-red-800' :
+                      'bg-blue-100 text-blue-800'
+                    }`}>
+                      {dashboardData.projects[0].status.charAt(0).toUpperCase() + dashboardData.projects[0].status.slice(1)}
+                    </span>
                       )}
                     </div>
                     {dashboardData.projects.length > 0 ? (
@@ -365,14 +365,14 @@ const Dashboard = () => {
                         <div>
                           <h4 className="font-medium text-lg">{dashboardData.projects[0].title}</h4>
                           <p className="text-sm text-gray-600 mt-1">{dashboardData.projects[0].description}</p>
-                        </div>
+                  </div>
                         
-                        {dashboardData.projects[0].progress && (
+                  {dashboardData.projects[0].progress && (
                           <div className="mt-5">
-                            <div className="flex justify-between mb-1">
-                              <span className="text-sm font-medium">Progress</span>
-                              <span className="text-sm font-medium">{dashboardData.projects[0].progress}%</span>
-                            </div>
+                      <div className="flex justify-between mb-1">
+                        <span className="text-sm font-medium">Progress</span>
+                        <span className="text-sm font-medium">{dashboardData.projects[0].progress}%</span>
+                      </div>
                             <div className="w-full bg-gray-200 rounded-full h-2.5">
                               <div 
                                 className={`h-2.5 rounded-full ${
@@ -380,11 +380,11 @@ const Dashboard = () => {
                                   dashboardData.projects[0].progress < 70 ? 'bg-yellow-600' :
                                   'bg-green-600'
                                 }`}
-                                style={{ width: `${dashboardData.projects[0].progress}%` }}
-                              ></div>
-                            </div>
-                          </div>
-                        )}
+                          style={{ width: `${dashboardData.projects[0].progress}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  )}
                         
                         {/* Timeline for project */}
                         <div className="mt-6">
@@ -421,23 +421,23 @@ const Dashboard = () => {
                           </ol>
                         </div>
                         
-                        {dashboardData.projects[0].deadline && (
+                  {dashboardData.projects[0].deadline && (
                           <div className="mt-4 text-sm">
                             <div className={`flex items-center ${
                               new Date(dashboardData.projects[0].deadline) - new Date() < 7 * 24 * 60 * 60 * 1000 
                               ? 'text-red-500 font-medium' 
                               : 'text-gray-500'
                             }`}>
-                              <FaClock className="mr-1" /> 
-                              <span>Deadline: {new Date(dashboardData.projects[0].deadline).toLocaleDateString()}</span>
+                        <FaClock className="mr-1" /> 
+                        <span>Deadline: {new Date(dashboardData.projects[0].deadline).toLocaleDateString()}</span>
                               {new Date(dashboardData.projects[0].deadline) - new Date() < 7 * 24 * 60 * 60 * 1000 && (
                                 <span className="ml-2 bg-red-100 text-red-800 text-xs font-semibold px-2.5 py-0.5 rounded">
                                   Approaching!
                                 </span>
                               )}
-                            </div>
-                          </div>
-                        )}
+                      </div>
+                    </div>
+                  )}
                         
                         <div className="mt-4 flex justify-end">
                           <button 
@@ -453,23 +453,23 @@ const Dashboard = () => {
                             View Details
                           </button>
                         </div>
-                      </div>
-                    ) : (
-                      <div className="text-center p-6 bg-gray-50 rounded-lg">
-                        <FaFileAlt className="mx-auto text-gray-400 text-3xl mb-3" />
-                        <p className="text-gray-700">No active projects found.</p>
-                        <button 
+                </div>
+              ) : (
+                <div className="text-center p-6 bg-gray-50 rounded-lg">
+                  <FaFileAlt className="mx-auto text-gray-400 text-3xl mb-3" />
+                  <p className="text-gray-700">No active projects found.</p>
+                  <button 
                           onClick={() => setActiveView('proposal')}
                           className="mt-4 text-white bg-indigo-600 hover:bg-indigo-700 focus:ring-4 focus:ring-indigo-300 font-medium rounded-lg text-sm px-5 py-2.5 focus:outline-none"
-                        >
-                          Submit a Proposal
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                  
+                  >
+                    Submit a Proposal
+                  </button>
+                </div>
+              )}
+            </div>
+
                   {/* Recent Activity */}
-                  <div>
+            <div>
                     <h3 className="text-lg font-medium mb-3">Recent Activity</h3>
                     <div className="bg-white border border-gray-200 rounded-lg p-4">
                       {dashboardData.notifications.length > 0 ? (
@@ -494,8 +494,8 @@ const Dashboard = () => {
                                     {new Date(notification.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                                   </p>
                                 </div>
-                              </div>
-                            </div>
+                        </div>
+                      </div>
                           ))}
                         </div>
                       ) : (
@@ -527,7 +527,7 @@ const Dashboard = () => {
                       >
                         <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
+                          </svg>
                       </button>
                     </h3>
                     {dashboardData.guide ? (
@@ -563,8 +563,8 @@ const Dashboard = () => {
                                 <h4 className="font-semibold text-lg text-indigo-900">
                                   {getGuideName()}
                                 </h4>
-                              </div>
-                            </div>
+                        </div>
+                      </div>
                             
                             <div className="flex items-start mx-1 mt-3">
                               <svg className="h-5 w-5 text-indigo-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -574,14 +574,14 @@ const Dashboard = () => {
                             </div>
                             
                             <div className="mt-4 text-center">
-                              <button 
+                        <button
                                 onClick={() => setActiveView('guide')}
-                                className="text-indigo-600 hover:text-indigo-800 text-sm font-medium"
-                              >
+                          className="text-indigo-600 hover:text-indigo-800 text-sm font-medium"
+                        >
                                 View Full Profile
-                              </button>
-                            </div>
-                          </div>
+                        </button>
+                      </div>
+                    </div>
                         );
                       })()
                     ) : (
@@ -643,188 +643,188 @@ const Dashboard = () => {
                               )}
                             </div>
                           </div>
-                        ))}
-                        {dashboardData.meetings.length > 2 && (
+                  ))}
+                  {dashboardData.meetings.length > 2 && (
                           <div className="text-center mt-2">
-                            <button
+                      <button
                               onClick={() => setActiveView('meetings')}
-                              className="text-indigo-600 hover:text-indigo-800 text-sm font-medium"
-                            >
-                              View All Meetings
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
+                        className="text-indigo-600 hover:text-indigo-800 text-sm font-medium"
+                      >
+                        View All Meetings
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
                       <div className="text-center py-4">
                         <FaCalendarAlt className="mx-auto text-gray-400 text-2xl mb-3" />
                         <p className="text-gray-700">No upcoming meetings</p>
                         <p className="mt-2 text-sm text-gray-500">
                           Your advisor will schedule meetings when needed
                         </p>
-                      </div>
-                    )}
+                </div>
+              )}
                   </div>
                 </div>
-              </div>
             </div>
-          )}
+          </div>
+        )}
 
           {activeView === 'proposal' && (
-            <div>
-              <h2 className="text-xl font-semibold mb-6">Submit Dissertation Proposal</h2>
-              <ProposalForm onSubmitSuccess={refreshDashboard} />
-            </div>
-          )}
+          <div>
+            <h2 className="text-xl font-semibold mb-6">Submit Dissertation Proposal</h2>
+            <ProposalForm onSubmitSuccess={refreshDashboard} />
+          </div>
+        )}
 
           {activeView === 'guide' && (
-            <div>
-              <h2 className="text-xl font-semibold mb-6">Your Faculty Guide</h2>
-              <GuideInfo />
-            </div>
-          )}
+          <div>
+            <h2 className="text-xl font-semibold mb-6">Your Faculty Guide</h2>
+            <GuideInfo />
+          </div>
+        )}
 
           {activeView === 'meetings' && (
-            <div>
+          <div>
               <h2 className="text-xl font-semibold mb-2">Faculty-Student Meetings</h2>
               <p className="text-gray-500 mb-6">Meetings are scheduled by your faculty guide. You can view meeting details here but cannot create or edit meetings.</p>
-              <MeetingsList />
-            </div>
-          )}
+            <MeetingsList />
+          </div>
+        )}
 
           {activeView === 'progress' && (
-            <div>
-              <h2 className="text-xl font-semibold mb-6">Progress Updates</h2>
-              <ProgressUpdate />
-            </div>
-          )}
+          <div>
+            <h2 className="text-xl font-semibold mb-6">Progress Updates</h2>
+            <ProgressUpdate />
+          </div>
+        )}
 
           {activeView === 'submission' && (
-            <div>
-              <h2 className="text-xl font-semibold mb-6">Final Dissertation Submission</h2>
-              <FinalSubmission />
-            </div>
-          )}
+          <div>
+            <h2 className="text-xl font-semibold mb-6">Final Dissertation Submission</h2>
+            <FinalSubmission />
+          </div>
+        )}
 
           {activeView === 'evaluation' && (
-            <div>
-              <h2 className="text-xl font-semibold mb-6">Evaluation Results</h2>
-              <EvaluationResults />
-            </div>
-          )}
+          <div>
+            <h2 className="text-xl font-semibold mb-6">Evaluation Results</h2>
+            <EvaluationResults />
+          </div>
+        )}
 
           {activeView === 'notifications' && (
-            <div>
-              <h2 className="text-xl font-semibold mb-6">Notifications</h2>
-              
-              <div className="bg-white rounded-lg shadow">
-                <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-                  <div>
-                    <h3 className="text-lg font-medium text-gray-900">Your Notifications</h3>
-                  </div>
-                  {dashboardData.notifications.filter(n => !n.read).length > 0 && (
-                    <button
-                      onClick={async () => {
-                        try {
-                          await studentService.markAllNotificationsAsRead(user.token);
-                          await refreshDashboard();
-                          toast.success('All notifications marked as read');
-                        } catch (error) {
-                          console.error('Error marking notifications as read:', error);
-                          toast.error('Failed to mark notifications as read');
-                        }
-                      }}
-                      className="text-sm text-indigo-600 hover:text-indigo-800"
-                    >
-                      Mark all as read
-                    </button>
-                  )}
+          <div>
+            <h2 className="text-xl font-semibold mb-6">Notifications</h2>
+            
+            <div className="bg-white rounded-lg shadow">
+              <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900">Your Notifications</h3>
                 </div>
-                
-                <div className="divide-y divide-gray-200">
-                  {dashboardData.notifications.length > 0 ? (
-                    dashboardData.notifications.map(notification => (
-                      <div 
-                        key={notification._id} 
-                        className={`p-6 ${!notification.read ? 'bg-indigo-50' : ''}`}
-                      >
-                        <div className="flex items-start">
-                          <div className={`flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center ${
-                            !notification.read ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-100 text-gray-600'
-                          }`}>
-                            {notification.type === 'proposal' && <FaFileAlt />}
-                            {notification.type === 'meeting' && <FaCalendarAlt />}
-                            {notification.type === 'progress' && <FaChartLine />}
-                            {notification.type === 'feedback' && <FaClipboardList />}
-                            {notification.type === 'evaluation' && <FaGraduationCap />}
-                            {notification.type === 'general' && <FaBell />}
-                          </div>
-                          <div className="ml-4 flex-1">
-                            <div className="flex justify-between">
-                              <p className={`text-sm font-medium ${!notification.read ? 'text-indigo-900' : 'text-gray-900'}`}>
-                                {notification.title}
-                              </p>
-                              <p className="text-xs text-gray-500">
-                                {new Date(notification.createdAt).toLocaleDateString()} at {' '}
-                                {new Date(notification.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                              </p>
-                            </div>
-                            <p className={`text-sm mt-1 ${!notification.read ? 'text-indigo-800' : 'text-gray-700'}`}>
-                              {notification.message}
+                {dashboardData.notifications.filter(n => !n.read).length > 0 && (
+                  <button
+                    onClick={async () => {
+                      try {
+                        await studentService.markAllNotificationsAsRead(user.token);
+                        await refreshDashboard();
+                        toast.success('All notifications marked as read');
+                      } catch (error) {
+                        console.error('Error marking notifications as read:', error);
+                        toast.error('Failed to mark notifications as read');
+                      }
+                    }}
+                    className="text-sm text-indigo-600 hover:text-indigo-800"
+                  >
+                    Mark all as read
+                  </button>
+                )}
+              </div>
+              
+              <div className="divide-y divide-gray-200">
+                {dashboardData.notifications.length > 0 ? (
+                  dashboardData.notifications.map(notification => (
+                    <div 
+                      key={notification._id} 
+                      className={`p-6 ${!notification.read ? 'bg-indigo-50' : ''}`}
+                    >
+                      <div className="flex items-start">
+                        <div className={`flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center ${
+                          !notification.read ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-100 text-gray-600'
+                        }`}>
+                          {notification.type === 'proposal' && <FaFileAlt />}
+                          {notification.type === 'meeting' && <FaCalendarAlt />}
+                          {notification.type === 'progress' && <FaChartLine />}
+                          {notification.type === 'feedback' && <FaClipboardList />}
+                          {notification.type === 'evaluation' && <FaGraduationCap />}
+                          {notification.type === 'general' && <FaBell />}
+                        </div>
+                        <div className="ml-4 flex-1">
+                          <div className="flex justify-between">
+                            <p className={`text-sm font-medium ${!notification.read ? 'text-indigo-900' : 'text-gray-900'}`}>
+                              {notification.title}
                             </p>
-                            
-                            {notification.actionLink && (
-                              <div className="mt-2">
-                                <button 
-                                  onClick={() => {
-                                    // Handle action based on notification type
-                                    const actionType = notification.actionLink.split('/')[0];
-                                    
+                            <p className="text-xs text-gray-500">
+                              {new Date(notification.createdAt).toLocaleDateString()} at {' '}
+                              {new Date(notification.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                            </p>
+                          </div>
+                          <p className={`text-sm mt-1 ${!notification.read ? 'text-indigo-800' : 'text-gray-700'}`}>
+                            {notification.message}
+                          </p>
+                          
+                          {notification.actionLink && (
+                            <div className="mt-2">
+                              <button 
+                                onClick={() => {
+                                  // Handle action based on notification type
+                                  const actionType = notification.actionLink.split('/')[0];
+                                  
                                     if (actionType === 'proposal') setActiveView('proposal');
                                     else if (actionType === 'meetings') setActiveView('meetings');
                                     else if (actionType === 'progress') setActiveView('progress');
                                     else if (actionType === 'submission') setActiveView('submission');
                                     else if (actionType === 'evaluation') setActiveView('evaluation');
                                     else if (actionType === 'guide') setActiveView('guide');
-                                  }}
-                                  className="text-sm text-indigo-600 hover:text-indigo-800"
-                                >
-                                  {notification.actionText || 'View Details'}
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                          
-                          {!notification.read && (
-                            <button
-                              onClick={async () => {
-                                try {
-                                  await studentService.markNotificationAsRead(notification._id, user.token);
-                                  await refreshDashboard();
-                                } catch (error) {
-                                  console.error('Error marking notification as read:', error);
-                                  toast.error('Failed to mark notification as read');
-                                }
-                              }}
-                              className="ml-4 text-sm text-gray-500 hover:text-gray-700"
-                            >
-                              Mark as read
-                            </button>
+                                }}
+                                className="text-sm text-indigo-600 hover:text-indigo-800"
+                              >
+                                {notification.actionText || 'View Details'}
+                              </button>
+                            </div>
                           )}
                         </div>
+                        
+                        {!notification.read && (
+                          <button
+                            onClick={async () => {
+                              try {
+                                await studentService.markNotificationAsRead(notification._id, user.token);
+                                await refreshDashboard();
+                              } catch (error) {
+                                console.error('Error marking notification as read:', error);
+                                toast.error('Failed to mark notification as read');
+                              }
+                            }}
+                            className="ml-4 text-sm text-gray-500 hover:text-gray-700"
+                          >
+                            Mark as read
+                          </button>
+                        )}
                       </div>
-                    ))
-                  ) : (
-                    <div className="p-6 text-center">
-                      <FaBell className="mx-auto text-gray-400 text-3xl mb-3" />
-                      <p className="text-gray-500">No notifications to display.</p>
                     </div>
-                  )}
-                </div>
+                  ))
+                ) : (
+                  <div className="p-6 text-center">
+                    <FaBell className="mx-auto text-gray-400 text-3xl mb-3" />
+                    <p className="text-gray-500">No notifications to display.</p>
+                  </div>
+                )}
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
+      </div>
       </main>
     </div>
   );

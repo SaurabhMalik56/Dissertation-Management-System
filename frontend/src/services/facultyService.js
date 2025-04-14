@@ -283,16 +283,48 @@ const scheduleMeeting = async (meetingData, token) => {
 // Update meeting status and add feedback
 const updateMeetingStatus = async (meetingId, statusData, token) => {
   try {
-    setAuthToken(token);
+    // Extract data fields from statusData
+    const { status, meetingSummary, scheduledDate, studentPoints, guideRemarks } = statusData;
+    console.log('Received statusData in service:', statusData);
+    
+    // Create a clean update object with only needed fields
+    const updateData = {
+      status: status || 'scheduled',
+      guideRemarks: guideRemarks || '',
+      studentPoints: studentPoints || '', 
+      meetingSummary: meetingSummary || ''
+    };
+    
+    // Add scheduledDate only if it exists
+    if (scheduledDate) {
+      updateData.scheduledDate = scheduledDate;
+    }
+    
+    console.log('Prepared updateData to send to API:', updateData);
     
     try {
-      const response = await axios.put(`${API_URL}/meetings/${meetingId}/status`, statusData);
+      // Use native fetch API instead of axios to avoid any transformation issues
+      const response = await fetch(`${API_URL}/meetings/${meetingId}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(updateData)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+      
+      const data = await response.json();
       
       // Invalidate meetings cache
       cache.meetings = null;
       cache.meetingsTimestamp = null;
       
-      return response.data;
+      console.log('API response from meeting update:', data);
+      return data;
     } catch (error) {
       if (error.response && error.response.status === 404) {
         console.log('Meeting status update API endpoint not found. Using mock data operation.');
@@ -300,7 +332,7 @@ const updateMeetingStatus = async (meetingId, statusData, token) => {
         // Update in mock data
         mockData.meetings = mockData.meetings.map(meeting => 
           meeting._id === meetingId 
-            ? { ...meeting, ...statusData } 
+            ? { ...meeting, ...updateData } 
             : meeting
         );
         
@@ -308,7 +340,14 @@ const updateMeetingStatus = async (meetingId, statusData, token) => {
         cache.meetings = mockData.meetings;
         cache.meetingsTimestamp = Date.now();
         
-        return { _id: meetingId, ...statusData };
+        // Create a copy of the relevant mock meeting with updated fields
+        const updatedMeeting = mockData.meetings.find(m => m._id === meetingId);
+        
+        if (!updatedMeeting) {
+          throw new Error('Meeting not found');
+        }
+        
+        return updatedMeeting;
       }
       throw error;
     }
@@ -523,6 +562,53 @@ const getUserId = () => {
   }
 };
 
+// Direct update for meeting fields - bypasses the server's field limitations
+const directUpdateMeeting = async (meetingId, updateData, token) => {
+  try {
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+    
+    console.log('Sending meeting update with Axios:', updateData);
+    
+    // Format data to ensure all fields are included
+    const formattedData = {
+      status: updateData.status || 'scheduled',
+      guideRemarks: updateData.guideRemarks || '',
+      studentPoints: String(updateData.studentPoints || ''),
+      meetingSummary: String(updateData.meetingSummary || '')
+    };
+    
+    if (updateData.scheduledDate) {
+      formattedData.scheduledDate = updateData.scheduledDate;
+    }
+    
+    // Create auth header for request
+    const config = {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      }
+    };
+    
+    // Make the API call
+    const response = await axios.put(
+      `${API_URL}/meetings/${meetingId}/status`, 
+      formattedData,
+      config
+    );
+    
+    console.log('API response from meeting update:', response.data);
+    
+    // Invalidate cache
+    cache.meetings = null;
+    cache.meetingsTimestamp = null;
+    
+    return response.data;
+  } catch (error) {
+    console.error('Error updating meeting:', error);
+    throw new Error(error.response?.data?.message || 'Failed to update meeting');
+  }
+};
+
 const facultyService = {
   getAssignedStudents,
   getMeetings,
@@ -532,7 +618,9 @@ const facultyService = {
   updateProfile,
   getDashboardData,
   clearCache,
-  createMeeting
+  createMeeting,
+  getUserId,
+  directUpdateMeeting
 };
 
 export default facultyService; 

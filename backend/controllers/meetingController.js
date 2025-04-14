@@ -187,7 +187,7 @@ exports.getMeetingById = async (req, res) => {
 // @access  Private/Faculty
 exports.updateMeetingStatus = async (req, res) => {
     try {
-        const { status, guideRemarks } = req.body;
+        const { status, guideRemarks, meetingSummary, studentPoints, scheduledDate } = req.body;
 
         const meeting = await Meeting.findById(req.params.id);
 
@@ -202,10 +202,23 @@ exports.updateMeetingStatus = async (req, res) => {
             });
         }
 
-        // Update status and feedback
+        // Update status and all provided fields
         meeting.status = status;
-        if (guideRemarks) {
+        
+        if (guideRemarks !== undefined) {
             meeting.guideRemarks = guideRemarks;
+        }
+        
+        if (meetingSummary !== undefined) {
+            meeting.meetingSummary = meetingSummary;
+        }
+        
+        if (studentPoints !== undefined) {
+            meeting.studentPoints = studentPoints;
+        }
+        
+        if (scheduledDate) {
+            meeting.scheduledDate = scheduledDate;
         }
 
         await meeting.save();
@@ -219,7 +232,7 @@ exports.updateMeetingStatus = async (req, res) => {
             link: `/student/meetings/${meeting._id}`
         });
 
-        res.json({ message: `Meeting marked as ${status}`, meeting });
+        res.json({ message: `Meeting updated successfully`, meeting });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Server error', error: error.message });
