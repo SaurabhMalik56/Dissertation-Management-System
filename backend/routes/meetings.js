@@ -4,8 +4,7 @@ const {
     getMeetings, 
     getMeetingById, 
     updateMeetingStatus, 
-    addMeetingTasks, 
-    updateTaskStatus,
+    updateStudentPoints,
     getDepartmentMeetings
 } = require('../controllers/meetingController');
 const { protect, authorize } = require('../middleware/auth');
@@ -15,20 +14,21 @@ const router = express.Router();
 // All routes are protected
 router.use(protect);
 
-// Routes accessible by all roles (with role-based filtering)
+// Routes accessible to all authenticated users
 router.route('/')
-    .get(getMeetings)
-    .post(authorize('faculty'), createMeeting);
+    .post(authorize('faculty'), createMeeting)
+    .get(getMeetings);
 
 router.route('/:id')
     .get(getMeetingById);
 
-// HOD only routes
-router.get('/department', authorize('hod'), getDepartmentMeetings);
-
 // Faculty only routes
 router.put('/:id/status', authorize('faculty'), updateMeetingStatus);
-router.put('/:id/tasks', authorize('faculty'), addMeetingTasks);
-router.put('/:id/tasks/:taskId', authorize('faculty'), updateTaskStatus);
+
+// Student only routes
+router.put('/:id/student-points', authorize('student'), updateStudentPoints);
+
+// HOD only routes
+router.get('/department', authorize('hod'), getDepartmentMeetings);
 
 module.exports = router; 

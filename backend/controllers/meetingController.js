@@ -1,6 +1,7 @@
 const Meeting = require('../models/Meeting');
 const Project = require('../models/Project');
 const User = require('../models/User');
+const Notification = require('../models/Notification');
 
 // @desc    Create or schedule a meeting
 // @route   POST /api/meetings
@@ -11,8 +12,11 @@ exports.createMeeting = async (req, res) => {
             projectId, 
             studentId, 
             scheduledDate, 
-            meetingNumber, 
-            notes 
+            meetingNumber,
+            title,
+            meetingType, 
+            guideNotes,
+            duration
         } = req.body;
 
         // Validate meeting number
@@ -29,7 +33,7 @@ exports.createMeeting = async (req, res) => {
         }
 
         // Check if faculty is assigned to this project
-        if (project.assignedGuide.toString() !== req.user._id.toString()) {
+        if (project.guide && project.guide.toString() !== req.user._id.toString()) {
             return res.status(403).json({ 
                 message: 'You are not authorized to schedule meetings for this project' 
             });
@@ -43,17 +47,29 @@ exports.createMeeting = async (req, res) => {
 
         // Check if meeting already exists for this project and meeting number
         const existingMeeting = await Meeting.findOne({
-            project: projectId,
-            meetingNumber
+            projectId: projectId,
+            meetingNumber: meetingNumber
         });
 
         if (existingMeeting) {
             // Update existing meeting instead of creating a new one
             existingMeeting.scheduledDate = scheduledDate;
             existingMeeting.status = 'scheduled';
-            existingMeeting.notes = notes || existingMeeting.notes;
+            existingMeeting.title = title || `Meeting ${meetingNumber}`;
+            existingMeeting.guideNotes = guideNotes || existingMeeting.guideNotes;
+            existingMeeting.meetingType = meetingType || existingMeeting.meetingType;
+            existingMeeting.duration = duration || existingMeeting.duration;
             
             await existingMeeting.save();
+            
+            // Create notification for student
+            await Notification.create({
+                recipient: studentId,
+                title: 'Meeting Rescheduled',
+                message: `Your meeting "${existingMeeting.title}" has been rescheduled for ${new Date(scheduledDate).toLocaleString()}`,
+                type: 'meeting',
+                link: `/student/meetings/${existingMeeting._id}`
+            });
             
             return res.json({
                 message: 'Meeting rescheduled',
@@ -61,14 +77,30 @@ exports.createMeeting = async (req, res) => {
             });
         }
 
+        // Create default title if not provided
+        const meetingTitle = title || `Meeting ${meetingNumber} with ${student.fullName}`;
+
         // Create new meeting
         const meeting = await Meeting.create({
-            project: projectId,
-            student: studentId,
-            guide: req.user._id,
+            title: meetingTitle,
+            projectId: projectId,
+            studentId: studentId,
+            facultyId: req.user._id,
             scheduledDate,
             meetingNumber,
-            notes
+            guideNotes: guideNotes || '',
+            meetingType: meetingType || 'progress-review',
+            duration: duration || 30,
+            status: 'scheduled'
+        });
+
+        // Create notification for student
+        await Notification.create({
+            recipient: studentId,
+            title: 'New Meeting Scheduled',
+            message: `A new meeting "${meetingTitle}" has been scheduled for ${new Date(scheduledDate).toLocaleString()}`,
+            type: 'meeting',
+            link: `/student/meetings/${meeting._id}`
         });
 
         res.status(201).json(meeting);
@@ -88,23 +120,23 @@ exports.getMeetings = async (req, res) => {
 
         // Filter by project if provided
         if (projectId) {
-            query.project = projectId;
+            query.projectId = projectId;
         }
 
         // Role-based filtering
         if (req.user.role === 'student') {
             // Students can only see their own meetings
-            query.student = req.user._id;
+            query.studentId = req.user._id;
         } else if (req.user.role === 'faculty') {
             // Faculty can see meetings where they are the guide
-            query.guide = req.user._id;
+            query.facultyId = req.user._id;
         }
         // HOD and Admin can see all meetings (with proper filtering)
 
         const meetings = await Meeting.find(query)
-            .populate('project', 'title')
-            .populate('student', 'fullName email')
-            .populate('guide', 'fullName email')
+            .populate('projectId', 'title')
+            .populate('studentId', 'fullName email')
+            .populate('facultyId', 'fullName email department')
             .sort({ scheduledDate: 1 });
 
         res.json(meetings);
@@ -120,9 +152,9 @@ exports.getMeetings = async (req, res) => {
 exports.getMeetingById = async (req, res) => {
     try {
         const meeting = await Meeting.findById(req.params.id)
-            .populate('project', 'title')
-            .populate('student', 'fullName email')
-            .populate('guide', 'fullName email');
+            .populate('projectId', 'title description technologies')
+            .populate('studentId', 'fullName email')
+            .populate('facultyId', 'fullName email department');
 
         if (!meeting) {
             return res.status(404).json({ message: 'Meeting not found' });
@@ -130,14 +162,14 @@ exports.getMeetingById = async (req, res) => {
 
         // Check access rights
         if (req.user.role === 'student' && 
-            meeting.student._id.toString() !== req.user._id.toString()) {
+            meeting.studentId._id.toString() !== req.user._id.toString()) {
             return res.status(403).json({ 
                 message: 'Not authorized to access this meeting' 
             });
         }
 
         if (req.user.role === 'faculty' && 
-            meeting.guide._id.toString() !== req.user._id.toString()) {
+            meeting.facultyId._id.toString() !== req.user._id.toString()) {
             return res.status(403).json({ 
                 message: 'Not authorized to access this meeting' 
             });
@@ -155,7 +187,7 @@ exports.getMeetingById = async (req, res) => {
 // @access  Private/Faculty
 exports.updateMeetingStatus = async (req, res) => {
     try {
-        const { status, feedback } = req.body;
+        const { status, guideRemarks } = req.body;
 
         const meeting = await Meeting.findById(req.params.id);
 
@@ -164,7 +196,7 @@ exports.updateMeetingStatus = async (req, res) => {
         }
 
         // Check if faculty is the guide for this meeting
-        if (meeting.guide.toString() !== req.user._id.toString()) {
+        if (meeting.facultyId.toString() !== req.user._id.toString()) {
             return res.status(403).json({ 
                 message: 'You are not authorized to update this meeting' 
             });
@@ -172,11 +204,20 @@ exports.updateMeetingStatus = async (req, res) => {
 
         // Update status and feedback
         meeting.status = status;
-        if (feedback) {
-            meeting.feedback = feedback;
+        if (guideRemarks) {
+            meeting.guideRemarks = guideRemarks;
         }
 
         await meeting.save();
+
+        // Create notification for student
+        await Notification.create({
+            recipient: meeting.studentId,
+            title: `Meeting ${status.charAt(0).toUpperCase() + status.slice(1)}`,
+            message: `Your meeting "${meeting.title}" has been marked as ${status}`,
+            type: 'meeting',
+            link: `/student/meetings/${meeting._id}`
+        });
 
         res.json({ message: `Meeting marked as ${status}`, meeting });
     } catch (error) {
@@ -185,67 +226,40 @@ exports.updateMeetingStatus = async (req, res) => {
     }
 };
 
-// @desc    Add tasks to meeting
-// @route   PUT /api/meetings/:id/tasks
-// @access  Private/Faculty
-exports.addMeetingTasks = async (req, res) => {
+// @desc    Update student points for a meeting
+// @route   PUT /api/meetings/:id/student-points
+// @access  Private/Student
+exports.updateStudentPoints = async (req, res) => {
     try {
-        const { tasks } = req.body;
-
+        const { studentPoints } = req.body;
+        
         const meeting = await Meeting.findById(req.params.id);
-
+        
         if (!meeting) {
             return res.status(404).json({ message: 'Meeting not found' });
         }
-
-        // Check if faculty is the guide for this meeting
-        if (meeting.guide.toString() !== req.user._id.toString()) {
-            return res.status(403).json({ 
-                message: 'You are not authorized to add tasks to this meeting' 
+        
+        // Check if student is authorized
+        if (meeting.studentId.toString() !== req.user._id.toString()) {
+            return res.status(403).json({
+                message: 'You are not authorized to update this meeting'
             });
         }
-
-        // Add tasks to meeting
-        meeting.tasks = tasks;
+        
+        // Update student points
+        meeting.studentPoints = studentPoints;
         await meeting.save();
-
-        res.json({ message: 'Tasks added to meeting', meeting });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Server error', error: error.message });
-    }
-};
-
-// @desc    Update task status
-// @route   PUT /api/meetings/:id/tasks/:taskId
-// @access  Private/Faculty
-exports.updateTaskStatus = async (req, res) => {
-    try {
-        const { status } = req.body;
-
-        const meeting = await Meeting.findById(req.params.id);
-
-        if (!meeting) {
-            return res.status(404).json({ message: 'Meeting not found' });
-        }
-
-        // Check if faculty is the guide for this meeting
-        if (meeting.guide.toString() !== req.user._id.toString()) {
-            return res.status(403).json({ 
-                message: 'You are not authorized to update tasks for this meeting' 
-            });
-        }
-
-        // Find and update the task
-        const task = meeting.tasks.id(req.params.taskId);
-        if (!task) {
-            return res.status(404).json({ message: 'Task not found' });
-        }
-
-        task.status = status;
-        await meeting.save();
-
-        res.json({ message: 'Task status updated', meeting });
+        
+        // Create notification for faculty
+        await Notification.create({
+            recipient: meeting.facultyId,
+            title: 'Student Added Discussion Points',
+            message: `${req.user.fullName} has added discussion points for meeting "${meeting.title}"`,
+            type: 'meeting',
+            link: `/faculty/meetings/${meeting._id}`
+        });
+        
+        res.json({ message: 'Student points updated successfully', meeting });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Server error', error: error.message });
@@ -285,11 +299,11 @@ exports.getDepartmentMeetings = async (req, res) => {
 
         // Get meetings where the guide is from the HOD's department
         const meetings = await Meeting.find({ 
-            guide: { $in: facultyIds }
+            facultyId: { $in: facultyIds }
         })
-        .populate('student', 'fullName email')
-        .populate('guide', 'fullName email')
-        .populate('project', 'title')
+        .populate('studentId', 'fullName email')
+        .populate('facultyId', 'fullName email')
+        .populate('projectId', 'title')
         .sort({ scheduledDate: -1 });
 
         res.json(meetings);

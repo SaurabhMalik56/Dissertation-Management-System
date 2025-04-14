@@ -266,39 +266,54 @@ const Dashboard = () => {
       
       // Get faculty ID
       const facultyId = getUserId();
-      const facultyName = user?.fullName || 'Faculty Guide';
       
-      // Create a mock project ID if one is not provided
-      const projectId = meetingModal.projectId || ('mock_project_' + Date.now());
+      // Find student's project ID if available
+      let projectId = meetingModal.projectId;
       
-      // Prepare meeting data
+      if (!projectId) {
+        // Try to find the student's project ID from our local data
+        const student = students.find(s => 
+          s.id === meetingModal.studentId || 
+          s._id === meetingModal.studentId
+        );
+        
+        if (student && (student.project?._id || student.project?.id)) {
+          projectId = student.project._id || student.project.id;
+        } else {
+          // If no project ID found, create a temporary one - ideally this would be handled server-side
+          projectId = 'temp_project_' + Date.now();
+        }
+      }
+      
+      // Create meeting title
+      const meetingTitle = `Meeting ${meetingNumber} with ${meetingModal.studentName}`;
+      
+      // Prepare meeting data for API
       const meetingData = {
-        title: `Meeting ${meetingNumber} with ${meetingModal.studentName}`,
-        project: projectId,
-        student: meetingModal.studentId,
-        studentId: meetingModal.studentId, // Ensure studentId is explicitly set
-        guide: facultyId,
-        guideName: facultyName, // Include faculty name
-        facultyId: facultyId, // Ensure facultyId is set
+        title: meetingTitle,
+        projectId: projectId,
+        studentId: meetingModal.studentId,
         scheduledDate: meetingDateTime,
-        dateTime: meetingDateTime, // Include dateTime for compatibility
-        status: 'scheduled',
         meetingNumber: parseInt(meetingNumber),
-        notes: guideNotes || '',
-        guideNotes: guideNotes || '', // For compatibility
-        meetingType: meetingType || 'online',
+        guideNotes: guideNotes || '',
+        meetingType: meetingType,
         duration: 45 // Default duration in minutes
       };
       
-      console.log('Creating meeting with data:', meetingData);
+      console.log('Scheduling meeting with data:', meetingData);
       
-      // Use the faculty service to create the meeting
+      // Call the API via service
+      setIsLoading(true);
       const result = await facultyService.createMeeting(meetingData, user.token);
+      setIsLoading(false);
       
       // Handle the result
       if (result.success) {
-        // Add to shared meetings store to ensure it's available to student components
-        window.SHARED_MEETINGS_STORE.addMeeting(result.data);
+        // Explicitly add the meeting to the shared store to ensure it's accessible to students
+        if (window.SHARED_MEETINGS_STORE) {
+          window.SHARED_MEETINGS_STORE.addMeeting(result.data);
+          console.log('Added meeting to shared store:', result.data);
+        }
         
         // Close the modal
         setMeetingModal(prev => ({ ...prev, isOpen: false }));
@@ -307,46 +322,48 @@ const Dashboard = () => {
         toast.success(
           <div>
             <div>Meeting scheduled successfully</div>
-            <div className="text-xs mt-1">Note: Students will need to refresh their meetings page to see this.</div>
-          </div>,
-          { autoClose: 5000 }
+            <div className="text-xs mt-1">Student has been notified about the new meeting.</div>
+          </div>
         );
         
-        // If it's a mock meeting, add it to the local state
-        if (result.mock) {
-          // Add the new meeting to the meetings state
-          const newMeeting = {
-            id: result.data._id,
-            title: result.data.title,
-            student: meetingModal.studentName,
-            date: result.data.scheduledDate,
-            status: 'scheduled'
-          };
-          
-          setMeetings(prevMeetings => [...prevMeetings, newMeeting]);
-          
-          // Update stats
-          setStats(prevStats => ({
-            ...prevStats,
-            upcomingMeetings: prevStats.upcomingMeetings + 1
-          }));
-        }
+        // Add the new meeting to the meetings state and update UI
+        const newMeeting = {
+          id: result.data._id,
+          _id: result.data._id, // Ensure both id formats are present
+          title: result.data.title,
+          studentName: meetingModal.studentName,
+          student: meetingModal.studentId, // Preserve student ID for filtering
+          studentId: meetingModal.studentId, // Add explicit studentId field
+          date: result.data.scheduledDate,
+          scheduledDate: result.data.scheduledDate,
+          status: 'scheduled',
+          meetingNumber: parseInt(meetingNumber)
+        };
         
-        // Ensure the meetings cache is cleared to force a refresh next time
+        setMeetings(prevMeetings => [...prevMeetings, newMeeting]);
+        
+        // Update stats
+        setStats(prevStats => ({
+          ...prevStats,
+          upcomingMeetings: prevStats.upcomingMeetings + 1
+        }));
+        
+        // Refresh meetings data to ensure we have the latest state from the server
         facultyService.clearCache();
         
-        // Refresh meetings data if on meetings tab
+        // If we're on the meetings tab, initiate a refresh
         if (activeTab === 'meetings') {
-          // No need to refresh since we've already updated the state
+          toast.info('Refreshing meetings list...');
+          fetchDashboardData();
         }
       } else {
-        throw new Error(result.message || 'Failed to schedule meeting');
+        // Show error message
+        toast.error(result.message || 'Failed to schedule meeting');
       }
     } catch (error) {
       console.error('Error scheduling meeting:', error);
-      
-      // Show error message
       toast.error(error.message || 'Failed to schedule meeting');
+      setIsLoading(false);
     }
   };
   
@@ -961,7 +978,10 @@ const Dashboard = () => {
                     required
                   >
                     <option value="online">Online</option>
-                    <option value="inperson">In-Person</option>
+                    <option value="in-person">In-Person</option>
+                    <option value="initial">Initial Discussion</option>
+                    <option value="progress-review">Progress Review</option>
+                    <option value="final-discussion">Final Discussion</option>
                   </select>
                 </div>
               </div>

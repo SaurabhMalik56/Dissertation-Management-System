@@ -104,14 +104,25 @@ const MeetingsList = () => {
           const userId = user._id || user.id;
           const meetingStudentId = newMeeting.student || newMeeting.studentId;
           
-          if (String(meetingStudentId) === String(userId) || 
-             (String(meetingStudentId) === '1' && String(userId) === '1')) { // For testing
+          console.log('Comparing meeting student ID:', meetingStudentId, 'with user ID:', userId);
+          
+          // Handle both string and object IDs, and various field names
+          const isForThisStudent = 
+            String(meetingStudentId) === String(userId) || 
+            (typeof meetingStudentId === 'object' && String(meetingStudentId._id) === String(userId)) ||
+            (String(meetingStudentId) === '1' && String(userId) === '1'); // For testing
+          
+          if (isForThisStudent) {
             console.log('New meeting is for this student!');
-            setNewMeetingsAvailable(true);
+            
+            // Automatically refresh meetings when a new one is scheduled
+            fetchMeetings(true);
+            
+            // Show a notification
             toast.info(
               <div>
-                <div>New meeting scheduled!</div>
-                <div className="text-xs mt-1">Click "Refresh" to view it.</div>
+                <div>New meeting scheduled by your guide!</div>
+                <div className="text-xs mt-1">Meeting details have been updated.</div>
               </div>
             );
           }
@@ -121,8 +132,14 @@ const MeetingsList = () => {
     
     window.addEventListener('new-meeting-created', handleNewMeeting);
     
+    // Also set up a periodic check for new meetings
+    const checkInterval = setInterval(() => {
+      checkSharedMeetingsStore();
+    }, 30000); // Check every 30 seconds
+    
     return () => {
       window.removeEventListener('new-meeting-created', handleNewMeeting);
+      clearInterval(checkInterval);
     };
   }, [user]);
 
@@ -147,22 +164,40 @@ const MeetingsList = () => {
 
   // Format date for display
   const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
+    if (!dateString) return 'No date set';
+    
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return 'Invalid date';
+      
+      return date.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'Date error';
+    }
   };
 
   // Format time for display
   const formatTime = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    if (!dateString) return 'No time set';
+    
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return 'Invalid time';
+      
+      return date.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (error) {
+      console.error('Error formatting time:', error);
+      return 'Time error';
+    }
   };
 
   // Get status color based on meeting status
@@ -286,21 +321,25 @@ const MeetingsList = () => {
               }`}>
                 {meeting.isPlaceholder 
                   ? 'Pending/Not Scheduled'
-                  : meeting.status.charAt(0).toUpperCase() + meeting.status.slice(1)}
+                  : (meeting.status ? meeting.status.charAt(0).toUpperCase() + meeting.status.slice(1) : 'Unknown')}
               </span>
             </div>
 
             {!meeting.isPlaceholder && (
               <>
                 <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="flex items-center text-sm text-gray-500">
-                    <FaCalendarAlt className="mr-2 text-gray-400" />
-                    <span>{formatDate(meeting.dateTime || meeting.scheduledDate)}</span>
-                  </div>
-                  <div className="flex items-center text-sm text-gray-500">
-                    <FaClock className="mr-2 text-gray-400" />
-                    <span>{formatTime(meeting.dateTime || meeting.scheduledDate)} {meeting.duration ? `(${meeting.duration} minutes)` : ''}</span>
-                  </div>
+                  {(meeting.dateTime || meeting.scheduledDate) && (
+                    <>
+                      <div className="flex items-center text-sm text-gray-500">
+                        <FaCalendarAlt className="mr-2 text-gray-400" />
+                        <span>{formatDate(meeting.dateTime || meeting.scheduledDate)}</span>
+                      </div>
+                      <div className="flex items-center text-sm text-gray-500">
+                        <FaClock className="mr-2 text-gray-400" />
+                        <span>{formatTime(meeting.dateTime || meeting.scheduledDate)} {meeting.duration ? `(${meeting.duration} minutes)` : ''}</span>
+                      </div>
+                    </>
+                  )}
                   {(meeting.location || meeting.meetingType) && (
                     <div className="flex items-center text-sm text-gray-500">
                       <FaMapMarkerAlt className="mr-2 text-gray-400" />
@@ -362,15 +401,17 @@ const MeetingsList = () => {
                   <p className="text-sm text-gray-500">Meeting Number</p>
                   <p className="font-medium">{selectedMeeting.meetingNumber || 'N/A'}</p>
                 </div>
-                <div>
-                  <p className="text-sm text-gray-500">Date & Time</p>
-                  <p className="font-medium">{formatDate(selectedMeeting.dateTime || selectedMeeting.scheduledDate)} at {formatTime(selectedMeeting.dateTime || selectedMeeting.scheduledDate)}</p>
-                </div>
+                {(selectedMeeting.dateTime || selectedMeeting.scheduledDate) && (
+                  <div>
+                    <p className="text-sm text-gray-500">Date & Time</p>
+                    <p className="font-medium">{formatDate(selectedMeeting.dateTime || selectedMeeting.scheduledDate)} at {formatTime(selectedMeeting.dateTime || selectedMeeting.scheduledDate)}</p>
+                  </div>
+                )}
                 <div>
                   <p className="text-sm text-gray-500">Status</p>
                   <p className="font-medium">
                     <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(selectedMeeting.status)}`}>
-                      {selectedMeeting.status.charAt(0).toUpperCase() + selectedMeeting.status.slice(1)}
+                      {selectedMeeting.status ? selectedMeeting.status.charAt(0).toUpperCase() + selectedMeeting.status.slice(1) : 'Unknown'}
                     </span>
                   </p>
                 </div>

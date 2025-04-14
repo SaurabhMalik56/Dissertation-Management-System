@@ -41,7 +41,14 @@ const MeetingsManager = ({ studentId }) => {
         
         // Filter meetings for the specific student if studentId is provided
         const filteredMeetings = studentId 
-          ? allMeetings.filter(meeting => meeting.student._id === studentId)
+          ? allMeetings.filter(meeting => {
+              // Handle both old and new field names
+              const meetingStudentId = meeting.studentId || meeting.student;
+              const studentIdToCompare = typeof meetingStudentId === 'object' ? 
+                meetingStudentId._id : meetingStudentId;
+              
+              return studentIdToCompare === studentId;
+            })
           : allMeetings;
         
         // Sort meetings by meeting number
@@ -69,7 +76,14 @@ const MeetingsManager = ({ studentId }) => {
       
       // Filter meetings for the specific student if studentId is provided
       const filteredMeetings = studentId 
-        ? allMeetings.filter(meeting => meeting.student._id === studentId)
+        ? allMeetings.filter(meeting => {
+            // Handle both old and new field names
+            const meetingStudentId = meeting.studentId || meeting.student;
+            const studentIdToCompare = typeof meetingStudentId === 'object' ? 
+              meetingStudentId._id : meetingStudentId;
+            
+            return studentIdToCompare === studentId;
+          })
         : allMeetings;
       
       // Sort meetings by meeting number
@@ -124,33 +138,78 @@ const MeetingsManager = ({ studentId }) => {
         return;
       }
       
-      // Prepare meeting data
-      const meetingData = {
-        studentId: studentId,
-        projectId: meetingToEdit?.project._id || meetings[0]?.project._id,
-        meetingNumber: meetingNum,
-        scheduledDate: formData.scheduledDate,
-        summary: formData.summary,
-        status: formData.status
-      };
+      // Get student info for title
+      const studentInfo = meetings.length > 0 ? 
+        (meetings[0].studentId?.fullName || meetings[0].student?.fullName || "Student") : 
+        "Student";
       
-      let result;
+      // Get project ID
+      let projectId = null;
+      if (meetingToEdit) {
+        projectId = meetingToEdit.projectId || meetingToEdit.project;
+        if (typeof projectId === 'object') {
+          projectId = projectId._id;
+        }
+      } else if (meetings[0]) {
+        projectId = meetings[0].projectId || meetings[0].project;
+        if (typeof projectId === 'object') {
+          projectId = projectId._id;
+        }
+      }
+      
+      if (!projectId) {
+        toast.error('Could not determine project ID');
+        setLoading(false);
+        return;
+      }
+      
+      // Prepare meeting data according to new API structure
+      const meetingData = {
+        title: `Meeting ${meetingNum} with ${studentInfo}`,
+        studentId: studentId,
+        projectId: projectId,
+        meetingNumber: meetingNum,
+        scheduledDate: `${formData.scheduledDate}T10:00:00`, // Default to 10 AM if no time specified
+        guideNotes: formData.summary || '',
+        meetingType: formData.meetingType || 'progress-review',
+        duration: 45
+      };
       
       if (meetingToEdit) {
         // Update existing meeting
-        result = await facultyService.updateMeeting(
-          meetingToEdit._id, 
-          meetingData, 
-          user.token
-        );
-        toast.success('Meeting updated successfully');
+        try {
+          // Use the updateMeetingStatus endpoint to update the meeting status
+          await facultyService.updateMeetingStatus(
+            meetingToEdit._id,
+            {
+              status: formData.status,
+              guideRemarks: formData.summary
+            },
+            user.token
+          );
+          
+          toast.success('Meeting updated successfully');
+        } catch (updateError) {
+          console.error('Error updating meeting:', updateError);
+          toast.error('Failed to update meeting');
+        }
       } else {
-        // Schedule new meeting
-        result = await facultyService.scheduleMeeting(
-          meetingData, 
-          user.token
-        );
-        toast.success('Meeting scheduled successfully');
+        // Create new meeting
+        try {
+          const result = await facultyService.createMeeting(
+            meetingData,
+            user.token
+          );
+          
+          if (result.success) {
+            toast.success('Meeting scheduled successfully');
+          } else {
+            throw new Error(result.message || 'Failed to schedule meeting');
+          }
+        } catch (createError) {
+          console.error('Error creating meeting:', createError);
+          toast.error(createError.message || 'Failed to schedule meeting');
+        }
       }
       
       // Refresh meetings list
@@ -158,7 +217,6 @@ const MeetingsManager = ({ studentId }) => {
       
       // Reset form
       resetForm();
-      
     } catch (err) {
       console.error('Error saving meeting:', err);
       toast.error(meetingToEdit ? 'Failed to update meeting' : 'Failed to schedule meeting');
@@ -176,13 +234,14 @@ const MeetingsManager = ({ studentId }) => {
     setFormData({
       meetingNumber: meeting.meetingNumber.toString(),
       scheduledDate: new Date(meeting.scheduledDate).toISOString().split('T')[0],
-      summary: meeting.summary || '',
+      // Use guideNotes, notes, or summary depending on what's available
+      summary: meeting.guideNotes || meeting.notes || meeting.summary || '',
       status: meeting.status
     });
     
     // Disable editing of meeting number and date for past meetings
     if (isPastMeeting) {
-      toast.info('This meeting has passed. You can only update the summary.');
+      toast.info('This meeting has passed. You can only update the notes and status.');
     }
     
     setShowAddForm(true);
@@ -382,7 +441,7 @@ const MeetingsManager = ({ studentId }) => {
           <div className="space-y-4">
             {meetings.map((meeting) => (
               <div 
-                key={meeting._id}
+                key={meeting._id || meeting.id}
                 className={`border rounded-lg p-4 ${
                   meeting.status === 'cancelled' ? 'border-gray-200 bg-gray-50' : 
                   meeting.status === 'completed' ? 'border-green-200 bg-green-50' : 
@@ -401,11 +460,21 @@ const MeetingsManager = ({ studentId }) => {
                       <FaCalendarAlt className="h-5 w-5" />
                     </div>
                     <div>
-                      <h4 className="text-sm font-medium">Meeting #{meeting.meetingNumber}</h4>
-                      {!studentId && meeting.student && (
+                      <h4 className="text-sm font-medium">
+                        {meeting.title || `Meeting #${meeting.meetingNumber}`}
+                      </h4>
+                      {!studentId && (
                         <div className="flex items-center text-xs text-gray-500 mt-1">
                           <FaUserGraduate className="mr-1" />
-                          <span>{meeting.student.fullName}</span>
+                          <span>
+                            {
+                              // Show student name using various possible field structures
+                              meeting.studentName || 
+                              (meeting.studentId && typeof meeting.studentId === 'object' ? meeting.studentId.fullName : null) ||
+                              (meeting.student && typeof meeting.student === 'object' ? meeting.student.fullName : null) ||
+                              'Student'
+                            }
+                          </span>
                         </div>
                       )}
                     </div>
@@ -429,9 +498,11 @@ const MeetingsManager = ({ studentId }) => {
                   </div>
                 </div>
                 
-                {meeting.summary && (
+                {(meeting.guideNotes || meeting.notes || meeting.summary) && (
                   <div className="mt-3 border-t border-gray-200 pt-3">
-                    <p className="text-sm text-gray-700">{meeting.summary}</p>
+                    <p className="text-sm text-gray-700">
+                      {meeting.guideNotes || meeting.notes || meeting.summary}
+                    </p>
                   </div>
                 )}
                 

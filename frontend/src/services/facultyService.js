@@ -99,7 +99,8 @@ const mockData = {
       studentId: '1',
       scheduledDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(), 
       status: 'scheduled',
-      description: 'Weekly check-in to discuss project progress'
+      description: 'Weekly check-in to discuss project progress',
+      meetingType: 'progress-review'
     },
     { 
       _id: '2', 
@@ -109,7 +110,8 @@ const mockData = {
       scheduledDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), 
       status: 'completed',
       description: 'Initial discussion about project proposal',
-      feedback: 'Good proposal, needs more detail on methodology'
+      feedback: 'Good proposal, needs more detail on methodology',
+      meetingType: 'initial'
     },
     { 
       _id: '3', 
@@ -118,7 +120,8 @@ const mockData = {
       studentId: '3',
       scheduledDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(), 
       status: 'scheduled',
-      description: 'Review of the proposed methodology'
+      description: 'Review of the proposed methodology',
+      meetingType: 'progress-review'
     },
     { 
       _id: '4', 
@@ -127,7 +130,8 @@ const mockData = {
       studentId: '1',
       scheduledDate: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(), 
       status: 'pending',
-      description: 'Preparation for the final presentation'
+      description: 'Preparation for the final presentation',
+      meetingType: 'final-discussion'
     }
   ]
 };
@@ -191,32 +195,39 @@ const getMeetings = async (token, forceRefresh = false) => {
     }
     
     try {
+      console.log('Fetching meetings from API');
       const response = await axios.get(`${API_URL}/meetings`);
       
-      // Process and cache the result
-      cache.meetings = response.data;
+      // Process and normalize the response data to ensure consistent format
+      const normalizedMeetings = response.data.map(meeting => ({
+        ...meeting,
+        id: meeting._id, // Add id as alias for _id for compatibility
+        // Map other fields to ensure compatibility with current frontend
+        student: meeting.studentId, 
+        guide: meeting.facultyId,
+        project: meeting.projectId,
+        // Include any other field mappings needed
+      }));
+      
+      // Cache the result
+      cache.meetings = normalizedMeetings;
       cache.meetingsTimestamp = Date.now();
       
-      console.log('Successfully fetched meetings from API, count:', response.data.length);
-      return response.data;
+      console.log('Successfully fetched meetings from API, count:', normalizedMeetings.length);
+      return normalizedMeetings;
     } catch (error) {
       console.error('Error fetching meetings from API:', error.message);
       
-      // If endpoint not found, use mock data
-      if (error.response && error.response.status === 404) {
-        console.log('Meetings API endpoint not found. Using mock meeting data, count:', mockData.meetings.length);
+      // If endpoint not found or server error, use mock data in development
+      if (process.env.NODE_ENV === 'development' && 
+          (error.response?.status === 404 || error.response?.status >= 500 || !error.response)) {
+        console.log('Meetings API endpoint not found or server error. Using mock meeting data in development.');
         
         // Ensure we're using the latest mockData.meetings
         cache.meetings = [...mockData.meetings]; // Create a fresh copy
         cache.meetingsTimestamp = Date.now();
         
-        // Log student IDs for debugging
-        console.log('mockData.meetings student IDs:', mockData.meetings.map(m => ({
-          id: m._id,
-          studentId: m.student || m.studentId,
-          title: m.title || `Meeting ${m.meetingNumber}`
-        })));
-        
+        console.log('Using mock data, meetings count:', mockData.meetings.length);
         return mockData.meetings;
       }
       
@@ -384,83 +395,131 @@ const getDashboardData = async (token) => {
   }
 };
 
-// Create a new meeting
-export const createMeeting = async (meetingData, token) => {
+// Create a meeting
+const createMeeting = async (meetingData, token) => {
   try {
-    // Try to use the real API endpoint
-    const config = {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    };
+    console.log('Creating meeting with data:', meetingData);
+    
+    // Ensure required fields are present
+    if (!meetingData.title || !meetingData.studentId || !meetingData.scheduledDate) {
+      return {
+        success: false,
+        message: 'Missing required meeting fields (title, studentId, scheduledDate)'
+      };
+    }
 
-    // For now, use mock data instead of real API call to avoid 404 errors
-    // const response = await axios.post(API_URL + '/meetings', meetingData, config);
+    // Set auth token for the request
+    setAuthToken(token);
     
-    console.log('Creating mock meeting with data:', meetingData);
+    // Format data to match database model requirements
+    const formattedMeetingData = {
+      ...meetingData,
+      // Ensure proper date format for the API
+      scheduledDate: new Date(meetingData.scheduledDate).toISOString(),
+      // Ensure meeting has a status
+      status: meetingData.status || 'scheduled',
+      // Add any other required fields for your database model
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
     
-    // Create a mock response - ensure student ID is consistent in all properties
-    const mockResponse = {
-      data: {
-        _id: 'mock_meeting_' + Date.now(),
-        title: meetingData.title,
-        project: meetingData.project,
-        student: meetingData.student, // Primary student reference
-        studentId: meetingData.student, // Additional student reference for compatibility
-        guide: meetingData.guide,
-        facultyId: meetingData.guide, // Add facultyId for compatibility
-        guideName: typeof meetingData.guideName === 'string' ? meetingData.guideName : 'Faculty Guide', // Add guideName for student view
-        scheduledDate: meetingData.scheduledDate,
-        dateTime: meetingData.scheduledDate, // Add dateTime for compatibility with student view
-        status: 'scheduled',
-        meetingNumber: meetingData.meetingNumber,
-        notes: meetingData.notes || '',
-        guideNotes: meetingData.notes || '', // Add guideNotes for student view
-        facultyComments: meetingData.notes || '', // Add facultyComments for compatibility
-        meetingType: meetingData.meetingType || 'online',
-        duration: 60, // Add default duration
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+    // Make the API call to create the meeting
+    try {
+      console.log('Sending formatted meeting data to API:', formattedMeetingData);
+      
+      // Send data to the database through API
+      const response = await axios.post(`${API_URL}/meetings`, formattedMeetingData, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      console.log('Meeting created successfully in database:', response.data);
+      
+      // Process the response to ensure it has the correct format
+      const newMeeting = {
+        ...response.data,
+        id: response.data._id || response.data.id, // Ensure both id formats are present
+        _id: response.data._id || response.data.id,
+        student: response.data.studentId || response.data.student, // Ensure student ID is available in both formats
+        studentId: response.data.studentId || response.data.student,
+      };
+      
+      // Add to cache
+      if (cache.meetings) {
+        cache.meetings.push(newMeeting);
       }
-    };
-    
-    // Log the created meeting data for debugging
-    console.log('Created mock meeting with:', {
-      meetingId: mockResponse.data._id,
-      studentId: mockResponse.data.student,
-      studentIdType: typeof mockResponse.data.student,
-      title: mockResponse.data.title
-    });
-    
-    // Add to mock data for consistency
-    mockData.meetings.push(mockResponse.data);
-    
-    // Log the updated meetings array to verify it was added
-    console.log('Updated facultyService mockData.meetings count:', mockData.meetings.length);
-    console.log('mockData.meetings student IDs:', mockData.meetings.map(m => ({
-      id: m._id,
-      studentId: m.student || m.studentId,
-      title: m.title
-    })));
-    
-    // Update cache with updated mock data
-    cache.meetings = mockData.meetings;
-    cache.meetingsTimestamp = Date.now();
-    
-    return {
-      success: true,
-      data: mockResponse.data,
-      mock: true,
-      message: 'Meeting created successfully'
-    };
+      
+      // Add to shared store for other components
+      if (window.SHARED_MEETINGS_STORE) {
+        console.log('Adding meeting to SHARED_MEETINGS_STORE:', newMeeting);
+        window.SHARED_MEETINGS_STORE.addMeeting(newMeeting);
+      }
+      
+      // Clear cache to ensure fresh data on next fetch
+      cache.meetings = null;
+      cache.meetingsTimestamp = null;
+      
+      // Return success response
+      return {
+        success: true,
+        data: newMeeting,
+        message: 'Meeting created successfully in database'
+      };
+    } catch (error) {
+      console.error('Error creating meeting in database:', error.response?.data || error.message);
+      
+      // Handle specific error cases
+      if (error.response) {
+        const status = error.response.status;
+        const errorMessage = error.response.data?.message || 'Unknown error occurred';
+        
+        if (status === 401) {
+          return {
+            success: false,
+            message: 'Authentication failed. Please login again.'
+          };
+        } else if (status === 400) {
+          return {
+            success: false,
+            message: `Bad request: ${errorMessage}`
+          };
+        } else if (status === 500) {
+          return {
+            success: false,
+            message: 'Server error. Please try again later.'
+          };
+        }
+      }
+      
+      // Generic error case
+      return {
+        success: false,
+        message: error.message || 'Failed to create meeting'
+      };
+    }
   } catch (error) {
-    console.error('Error in createMeeting:', error);
-    
+    console.error('Unexpected error in createMeeting:', error);
     return {
       success: false,
-      mock: true,
-      message: error.response?.data?.message || error.message || 'Error creating meeting'
+      message: 'An unexpected error occurred while creating the meeting'
     };
+  }
+};
+
+// Helper function to get user ID
+const getUserId = () => {
+  try {
+    // Try to get from redux store via localStorage
+    const user = JSON.parse(localStorage.getItem('user'));
+    if (user && (user._id || user.id)) {
+      return user._id || user.id;
+    }
+    return 'unknown_user_id';
+  } catch (error) {
+    console.error('Error getting user ID:', error);
+    return 'unknown_user_id';
   }
 };
 
