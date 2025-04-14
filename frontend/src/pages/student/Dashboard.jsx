@@ -467,12 +467,6 @@ const Dashboard = () => {
                         
                         <div className="mt-4 flex justify-end">
                           <button 
-                            onClick={() => setActiveView('progress')} 
-                            className="text-white bg-indigo-600 hover:bg-indigo-700 focus:ring-4 focus:ring-indigo-300 font-medium rounded-lg text-sm px-4 py-2 mr-2 focus:outline-none"
-                          >
-                            Update Progress
-                          </button>
-                          <button 
                             onClick={() => setActiveView('submission')} 
                             className="text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:ring-4 focus:ring-indigo-300 font-medium rounded-lg text-sm px-4 py-2 focus:outline-none"
                           >

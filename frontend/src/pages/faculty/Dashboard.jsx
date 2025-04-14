@@ -835,7 +835,7 @@ const Dashboard = () => {
                                   meeting.studentName || meeting.student || 'Student'}
                               </p>
                             </div>
-                            <div className="mt-2 md:mt-0 flex flex-col md:flex-row md:items-center">
+                            <div className="mt-2 md:mt-0 flex flex-col md:flex-row md:items-center justify-center">
                               <span className="badge badge-primary mb-2 md:mb-0 md:mr-2">{formatDate(meeting.date)}</span>
                               <div className="space-x-2">
                               <button 
@@ -895,7 +895,7 @@ const Dashboard = () => {
                                 </div>
                               </div>
                               
-                              <div className="mt-2 flex flex-wrap gap-2">
+                              <div className="mt-2 flex flex-wrap gap-2 justify-center">
                                 <button 
                                   onClick={() => handleUpdateProgress(student.id)}
                                   className="btn btn-secondary btn-sm"
@@ -974,7 +974,7 @@ const Dashboard = () => {
                           <th>Student</th>
                           <th>Progress</th>
                           <th>Deadline</th>
-                          <th>Actions</th>
+                          <th className="text-center">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1002,7 +1002,7 @@ const Dashboard = () => {
                               </div>
                             </td>
                             <td>{new Date(project.deadline).toLocaleDateString()}</td>
-                            <td>
+                            <td className="text-center">
                               <button className="text-indigo-600 hover:text-indigo-900 mr-2">
                                 View
                               </button>
@@ -1098,7 +1098,7 @@ const Dashboard = () => {
                                         <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider w-1/6">Date</th>
                                         <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider w-2/6">Summary</th>
                                         <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider w-1/6">Status</th>
-                                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider w-1/6">Actions</th>
+                                        <th className="px-4 py-3 text-center text-sm font-medium text-gray-500 uppercase tracking-wider w-1/6">Actions</th>
                         </tr>
                       </thead>
                                     <tbody className="divide-y divide-gray-200">
@@ -1154,7 +1154,7 @@ const Dashboard = () => {
                                                  status.charAt(0).toUpperCase() + status.slice(1)}
                               </span>
                             </td>
-                                            <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
+                                            <td className="px-4 py-3 whitespace-nowrap text-center text-sm font-medium">
                                               {status === 'not-conducted' || !meeting ? (
                                   <button 
                                                   onClick={() => handleScheduleMeeting(studentId, null, meetingNumber)}
@@ -1163,18 +1163,12 @@ const Dashboard = () => {
                                                   Schedule
                                   </button>
                                               ) : status === 'scheduled' ? (
-                                                <div className="flex space-x-2">
+                                                <div className="flex justify-center space-x-2">
                                   <button 
                                                     onClick={() => handleEditMeeting(meeting.id || meeting._id)}
                                                     className="text-blue-600 hover:text-blue-900"
                                   >
                                                     Update
-                                  </button>
-                                  <button 
-                                                    onClick={() => handleCompleteMeeting(meeting.id || meeting._id)}
-                                                    className="text-green-600 hover:text-green-900"
-                                  >
-                                                    Complete
                                   </button>
                                                 </div>
                                               ) : (
