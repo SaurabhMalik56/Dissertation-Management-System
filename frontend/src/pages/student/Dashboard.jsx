@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
+import { useLocation } from 'react-router-dom';
 import { 
   FaBook, 
   FaCalendarAlt, 
@@ -15,7 +16,8 @@ import {
   FaSync,
   FaClock,
   FaChartLine,
-  FaGraduationCap
+  FaGraduationCap,
+  FaUser
 } from 'react-icons/fa';
 import studentService from '../../services/studentService';
 
@@ -25,6 +27,7 @@ import MeetingsList from '../../components/student/MeetingsList';
 import GuideInfo from '../../components/student/GuideInfo';
 import EvaluationResults from '../../components/student/EvaluationResults';
 import CurrentProject from '../../components/student/CurrentProject';
+import ProfileSection from '../../components/student/ProfileSection';
 
 const Dashboard = () => {
   const [loading, setLoading] = useState(true);
@@ -45,6 +48,19 @@ const Dashboard = () => {
   const [currentProject, setCurrentProject] = useState(null);
 
   const { user } = useSelector((state) => state.auth);
+  const location = useLocation();
+
+  // Set active view based on route
+  useEffect(() => {
+    const path = location.pathname;
+    if (path.includes('proposal')) setActiveView('proposal');
+    else if (path.includes('guide')) setActiveView('guide');
+    else if (path.includes('meetings')) setActiveView('meetings');
+    else if (path.includes('evaluation')) setActiveView('evaluation');
+    else if (path.includes('notifications')) setActiveView('notifications');
+    else if (path.includes('profile')) setActiveView('profile');
+    else if (path === '/student') setActiveView('overview');
+  }, [location.pathname]);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -268,7 +284,8 @@ const Dashboard = () => {
     { id: 'meetings', label: 'Meetings', icon: <FaCalendarAlt className="w-5 h-5" /> },
     { id: 'evaluation', label: 'Evaluation', icon: <FaClipboardList className="w-5 h-5" /> },
     { id: 'notifications', label: 'Notifications', icon: <FaBell className="w-5 h-5" />, 
-      badge: dashboardData.notifications.filter(n => !n.read).length || null }
+      badge: dashboardData.notifications.filter(n => !n.read).length || null },
+    { id: 'profile', label: 'Profile', icon: <FaUser className="w-5 h-5" /> }
   ];
 
   return (
@@ -718,6 +735,13 @@ const Dashboard = () => {
                 )}
               </div>
             </div>
+          </div>
+        )}
+
+          {activeView === 'profile' && (
+          <div>
+            <h2 className="text-xl font-semibold mb-6">Your Profile</h2>
+            <ProfileSection />
           </div>
         )}
       </div>

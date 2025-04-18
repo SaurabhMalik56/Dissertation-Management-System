@@ -33,4 +33,10 @@ router.get('/evaluation', protect, studentController.getEvaluationResults);
 // GET /api/students/final-submission/:projectId - Get final submission
 router.get('/final-submission/:projectId', protect, studentController.getFinalSubmission);
 
+// GET /api/students/profile - Get student profile
+router.get('/profile', protect, studentController.getProfile);
+
+// PUT /api/students/profile - Update student profile
+router.put('/profile', protect, studentController.updateProfile);
+
 module.exports = router; 

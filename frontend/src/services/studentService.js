@@ -535,6 +535,32 @@ const getProjectDetails = async (projectId, token) => {
   }
 };
 
+// Get student profile data
+const getStudentProfile = async (token) => {
+  try {
+    setAuthToken(token);
+    // Change to use student-specific endpoint
+    const response = await axios.get(`${API_URL}/students/profile`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching student profile:', error);
+    throw new Error(error.response?.data?.message || 'Failed to fetch profile');
+  }
+};
+
+// Update student profile
+const updateProfile = async (profileData, token) => {
+  try {
+    setAuthToken(token);
+    // Change to use student-specific endpoint
+    const response = await axios.put(`${API_URL}/students/profile`, profileData);
+    return response.data;
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    throw new Error(error.response?.data?.message || 'Failed to update profile');
+  }
+};
+
 const studentService = {
   getStudentDashboard,
   getStudentProjects,
@@ -548,7 +574,9 @@ const studentService = {
   getEvaluationResults,
   getMeetingsFromGuide,
   getMeetingDetails,
-  getProjectDetails
+  getProjectDetails,
+  getStudentProfile,
+  updateProfile,
 };
 
 export default studentService; 

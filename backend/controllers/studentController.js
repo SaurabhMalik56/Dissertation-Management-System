@@ -296,6 +296,73 @@ const getFinalSubmission = asyncHandler(async (req, res) => {
   res.status(200).json(submission);
 });
 
+// @desc    Get student profile
+// @route   GET /api/students/profile
+// @access  Private (Student only)
+const getProfile = asyncHandler(async (req, res) => {
+  // Ensure user is a student
+  if (req.user.role !== 'student') {
+    res.status(403);
+    throw new Error('Not authorized - student access only');
+  }
+
+  const student = await User.findById(req.user.id)
+    .select('-password');
+
+  if (!student) {
+    res.status(404);
+    throw new Error('Student not found');
+  }
+
+  res.status(200).json(student);
+});
+
+// @desc    Update student profile
+// @route   PUT /api/students/profile
+// @access  Private (Student only)
+const updateProfile = asyncHandler(async (req, res) => {
+  // Ensure user is a student
+  if (req.user.role !== 'student') {
+    res.status(403);
+    throw new Error('Not authorized - student access only');
+  }
+
+  const { fullName, phone, bio, batch } = req.body;
+
+  // Find student
+  const student = await User.findById(req.user.id);
+
+  if (!student) {
+    res.status(404);
+    throw new Error('Student not found');
+  }
+
+  // Update fields
+  if (fullName) student.fullName = fullName;
+  if (phone) student.phone = phone;
+  if (bio !== undefined) student.bio = bio;
+  if (batch) student.batch = batch;
+
+  // Save changes
+  const updatedStudent = await student.save();
+
+  // Return updated user without password
+  const responseUser = {
+    _id: updatedStudent._id,
+    fullName: updatedStudent.fullName,
+    email: updatedStudent.email,
+    role: updatedStudent.role,
+    department: updatedStudent.department,
+    branch: updatedStudent.branch,
+    rollNumber: updatedStudent.rollNumber,
+    batch: updatedStudent.batch,
+    phone: updatedStudent.phone,
+    bio: updatedStudent.bio
+  };
+
+  res.status(200).json(responseUser);
+});
+
 module.exports = {
   getDashboard,
   getGuide,
@@ -306,5 +373,7 @@ module.exports = {
   markAllNotificationsAsRead,
   getProgressUpdates,
   getEvaluationResults,
-  getFinalSubmission
+  getFinalSubmission,
+  getProfile,
+  updateProfile
 }; 
