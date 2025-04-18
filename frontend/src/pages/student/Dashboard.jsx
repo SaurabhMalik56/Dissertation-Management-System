@@ -27,6 +27,7 @@ import GuideInfo from '../../components/student/GuideInfo';
 import ProgressUpdate from '../../components/student/ProgressUpdate';
 import FinalSubmission from '../../components/student/FinalSubmission';
 import EvaluationResults from '../../components/student/EvaluationResults';
+import CurrentProject from '../../components/student/CurrentProject';
 
 const Dashboard = () => {
   const [loading, setLoading] = useState(true);
@@ -44,6 +45,7 @@ const Dashboard = () => {
       submissionsThisMonth: 0
     }
   });
+  const [currentProject, setCurrentProject] = useState(null);
 
   const { user } = useSelector((state) => state.auth);
 
@@ -132,6 +134,38 @@ const Dashboard = () => {
     return () => clearInterval(intervalId);
   }, [user, activeView]);
 
+  // Add an effect to mark notifications as read when viewing the notifications tab
+  useEffect(() => {
+    const markNotificationsRead = async () => {
+      if (activeView === 'notifications' && user && user.token) {
+        try {
+          // Get unread notification IDs
+          const unreadIds = dashboardData.notifications
+            .filter(notification => !notification.read)
+            .map(notification => notification._id);
+          
+          if (unreadIds.length > 0) {
+            await studentService.markNotificationsAsRead(unreadIds, user.token);
+            console.log('Marked notifications as read:', unreadIds.length);
+            
+            // Update local state to show notifications as read
+            setDashboardData(prev => ({
+              ...prev,
+              notifications: prev.notifications.map(notification => ({
+                ...notification,
+                read: true
+              }))
+            }));
+          }
+        } catch (error) {
+          console.error('Error marking notifications as read:', error);
+        }
+      }
+    };
+    
+    markNotificationsRead();
+  }, [activeView, dashboardData.notifications, user]);
+
   const refreshDashboard = async () => {
     try {
       setLoading(true);
@@ -168,6 +202,29 @@ const Dashboard = () => {
     } catch (error) {
       console.error('Error refreshing dashboard:', error);
       toast.error('Failed to refresh dashboard');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle selecting a project to view details
+  const handleViewProject = async (projectId, view = 'submission') => {
+    try {
+      if (!projectId && dashboardData.projects.length > 0) {
+        projectId = dashboardData.projects[0]._id;
+      }
+      
+      if (projectId) {
+        setLoading(true);
+        const projectDetails = await studentService.getProjectDetails(projectId, user.token);
+        setCurrentProject(projectDetails);
+        setActiveView(view);
+      } else {
+        toast.warning('No project selected');
+      }
+    } catch (error) {
+      console.error('Error fetching project details:', error);
+      toast.error('Could not load project details');
     } finally {
       setLoading(false);
     }
@@ -212,7 +269,6 @@ const Dashboard = () => {
     { id: 'proposal', label: 'Submit Proposal', icon: <FaFileAlt className="w-5 h-5" /> },
     { id: 'guide', label: 'View Guide', icon: <FaUserTie className="w-5 h-5" /> },
     { id: 'meetings', label: 'Meetings', icon: <FaCalendarAlt className="w-5 h-5" /> },
-    { id: 'progress', label: 'Progress Updates', icon: <FaChartLine className="w-5 h-5" /> },
     { id: 'submission', label: 'Final Submission', icon: <FaGraduationCap className="w-5 h-5" /> },
     { id: 'evaluation', label: 'Evaluation', icon: <FaClipboardList className="w-5 h-5" /> },
     { id: 'notifications', label: 'Notifications', icon: <FaBell className="w-5 h-5" />, 
@@ -275,60 +331,10 @@ const Dashboard = () => {
         {/* Stats Cards */}
         {activeView === 'overview' && (
           <>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-              <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300">
-          <div className="flex items-center">
-            <div className="p-3 rounded-full bg-green-100 text-green-500 mr-4">
-              <FaBook className="text-xl" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-500 font-medium">Total Projects</p>
-              <p className="text-2xl font-bold">{dashboardData.stats.totalProjects}</p>
-            </div>
-          </div>
-        </div>
-        
-              <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300">
-          <div className="flex items-center">
-            <div className="p-3 rounded-full bg-blue-100 text-blue-500 mr-4">
-              <FaCheckCircle className="text-xl" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-500 font-medium">Completed</p>
-              <p className="text-2xl font-bold">{dashboardData.stats.completedProjects}</p>
-            </div>
-          </div>
-        </div>
-        
-              <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300">
-          <div className="flex items-center">
-            <div className="p-3 rounded-full bg-purple-100 text-purple-500 mr-4">
-              <FaCalendarAlt className="text-xl" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-500 font-medium">Upcoming Meetings</p>
-              <p className="text-2xl font-bold">{dashboardData.stats.upcomingMeetings}</p>
-            </div>
-          </div>
-        </div>
-        
-              <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300">
-          <div className="flex items-center">
-            <div className="p-3 rounded-full bg-yellow-100 text-yellow-500 mr-4">
-              <FaFileAlt className="text-xl" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-500 font-medium">Submissions</p>
-              <p className="text-2xl font-bold">{dashboardData.stats.submissionsThisMonth} <span className="text-sm text-gray-500">this month</span></p>
-            </div>
-          </div>
-        </div>
-      </div>
-
             {/* Quick Actions Section */}
             <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg shadow-md p-6 mb-8">
               <h3 className="text-white text-lg font-semibold mb-4">Quick Actions</h3>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <button
                   onClick={() => setActiveView('proposal')}
                   className="bg-white bg-opacity-20 hover:bg-opacity-30 transition-colors duration-200 rounded-lg p-4 text-white text-center"
@@ -342,13 +348,6 @@ const Dashboard = () => {
                 >
                   <FaCalendarAlt className="text-xl mx-auto mb-2" />
                   <span className="text-sm">View Meetings</span>
-          </button>
-          <button
-                  onClick={() => setActiveView('progress')}
-                  className="bg-white bg-opacity-20 hover:bg-opacity-30 transition-colors duration-200 rounded-lg p-4 text-white text-center"
-                >
-                  <FaChartLine className="text-xl mx-auto mb-2" />
-                  <span className="text-sm">Update Progress</span>
           </button>
           <button
                   onClick={() => setActiveView('submission')}
@@ -369,127 +368,22 @@ const Dashboard = () => {
             <div>
               <h2 className="text-xl font-semibold mb-4">Your Dashboard</h2>
               
+              {/* Current Project - Full Width */}
+              <div className="mb-6">
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="text-lg font-medium">Current Project</h3>
+                </div>
+                <CurrentProject 
+                  project={dashboardData.projects.length > 0 ? dashboardData.projects[0] : null}
+                  onViewDetails={(view) => setActiveView(view)}
+                />
+              </div>
+              
+              {/* Other Dashboard Sections */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2">
-                  {/* Current Project with Timeline */}
-            <div className="mb-6">
-                    <div className="flex justify-between items-center mb-2">
-                      <h3 className="text-lg font-medium">Current Project</h3>
-                      {dashboardData.projects.length > 0 && (
-                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                      dashboardData.projects[0].status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                      dashboardData.projects[0].status === 'approved' ? 'bg-green-100 text-green-800' :
-                      dashboardData.projects[0].status === 'rejected' ? 'bg-red-100 text-red-800' :
-                      'bg-blue-100 text-blue-800'
-                    }`}>
-                      {dashboardData.projects[0].status.charAt(0).toUpperCase() + dashboardData.projects[0].status.slice(1)}
-                    </span>
-                      )}
-                    </div>
-                    {dashboardData.projects.length > 0 ? (
-                      <div className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow duration-300">
-                        <div>
-                          <h4 className="font-medium text-lg">{dashboardData.projects[0].title}</h4>
-                          <p className="text-sm text-gray-600 mt-1">{dashboardData.projects[0].description}</p>
-                  </div>
-                        
-                  {dashboardData.projects[0].progress && (
-                          <div className="mt-5">
-                      <div className="flex justify-between mb-1">
-                        <span className="text-sm font-medium">Progress</span>
-                        <span className="text-sm font-medium">{dashboardData.projects[0].progress}%</span>
-                      </div>
-                            <div className="w-full bg-gray-200 rounded-full h-2.5">
-                              <div 
-                                className={`h-2.5 rounded-full ${
-                                  dashboardData.projects[0].progress < 30 ? 'bg-red-600' :
-                                  dashboardData.projects[0].progress < 70 ? 'bg-yellow-600' :
-                                  'bg-green-600'
-                                }`}
-                          style={{ width: `${dashboardData.projects[0].progress}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                  )}
-                        
-                        {/* Timeline for project */}
-                        <div className="mt-6">
-                          <h5 className="text-sm font-medium mb-3">Project Timeline</h5>
-                          <ol className="relative border-l border-gray-200">
-                            <li className="mb-6 ml-4">
-                              <div className="absolute w-3 h-3 bg-green-600 rounded-full mt-1.5 -left-1.5"></div>
-                              <time className="mb-1 text-xs font-normal text-gray-500">
-                                {new Date(dashboardData.projects[0].createdAt).toLocaleDateString()}
-                              </time>
-                              <h3 className="text-sm font-semibold text-gray-900">Proposal Submitted</h3>
-                            </li>
-                            <li className="mb-6 ml-4">
-                              <div className={`absolute w-3 h-3 ${dashboardData.projects[0].status === 'approved' ? 'bg-green-600' : 'bg-gray-300'} rounded-full mt-1.5 -left-1.5`}></div>
-                              <time className="mb-1 text-xs font-normal text-gray-500">
-                                {dashboardData.projects[0].approvedDate ? new Date(dashboardData.projects[0].approvedDate).toLocaleDateString() : 'Pending'}
-                              </time>
-                              <h3 className="text-sm font-semibold text-gray-900">Project Approved</h3>
-                            </li>
-                            <li className="mb-6 ml-4">
-                              <div className={`absolute w-3 h-3 ${dashboardData.projects[0].progress >= 50 ? 'bg-green-600' : 'bg-gray-300'} rounded-full mt-1.5 -left-1.5`}></div>
-                              <time className="mb-1 text-xs font-normal text-gray-500">
-                                {dashboardData.projects[0].midReviewDate ? new Date(dashboardData.projects[0].midReviewDate).toLocaleDateString() : 'Upcoming'}
-                              </time>
-                              <h3 className="text-sm font-semibold text-gray-900">Mid-Term Review</h3>
-                            </li>
-                            <li className="ml-4">
-                              <div className={`absolute w-3 h-3 ${dashboardData.projects[0].status === 'completed' ? 'bg-green-600' : 'bg-gray-300'} rounded-full mt-1.5 -left-1.5`}></div>
-                              <time className="mb-1 text-xs font-normal text-gray-500">
-                                {dashboardData.projects[0].deadline ? new Date(dashboardData.projects[0].deadline).toLocaleDateString() : 'Not set'}
-                              </time>
-                              <h3 className="text-sm font-semibold text-gray-900">Final Submission</h3>
-                            </li>
-                          </ol>
-                        </div>
-                        
-                  {dashboardData.projects[0].deadline && (
-                          <div className="mt-4 text-sm">
-                            <div className={`flex items-center ${
-                              new Date(dashboardData.projects[0].deadline) - new Date() < 7 * 24 * 60 * 60 * 1000 
-                              ? 'text-red-500 font-medium' 
-                              : 'text-gray-500'
-                            }`}>
-                        <FaClock className="mr-1" /> 
-                        <span>Deadline: {new Date(dashboardData.projects[0].deadline).toLocaleDateString()}</span>
-                              {new Date(dashboardData.projects[0].deadline) - new Date() < 7 * 24 * 60 * 60 * 1000 && (
-                                <span className="ml-2 bg-red-100 text-red-800 text-xs font-semibold px-2.5 py-0.5 rounded">
-                                  Approaching!
-                                </span>
-                              )}
-                      </div>
-                    </div>
-                  )}
-                        
-                        <div className="mt-4 flex justify-end">
-                          <button 
-                            onClick={() => setActiveView('submission')} 
-                            className="text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:ring-4 focus:ring-indigo-300 font-medium rounded-lg text-sm px-4 py-2 focus:outline-none"
-                          >
-                            View Details
-                          </button>
-                        </div>
-                </div>
-              ) : (
-                <div className="text-center p-6 bg-gray-50 rounded-lg">
-                  <FaFileAlt className="mx-auto text-gray-400 text-3xl mb-3" />
-                  <p className="text-gray-700">No active projects found.</p>
-                  <button 
-                          onClick={() => setActiveView('proposal')}
-                          className="mt-4 text-white bg-indigo-600 hover:bg-indigo-700 focus:ring-4 focus:ring-indigo-300 font-medium rounded-lg text-sm px-5 py-2.5 focus:outline-none"
-                  >
-                    Submit a Proposal
-                  </button>
-                </div>
-              )}
-            </div>
-
                   {/* Recent Activity */}
-            <div>
+                  <div>
                     <h3 className="text-lg font-medium mb-3">Recent Activity</h3>
                     <div className="bg-white border border-gray-200 rounded-lg p-4">
                       {dashboardData.notifications.length > 0 ? (
@@ -712,17 +606,13 @@ const Dashboard = () => {
           </div>
         )}
 
-          {activeView === 'progress' && (
-          <div>
-            <h2 className="text-xl font-semibold mb-6">Progress Updates</h2>
-            <ProgressUpdate />
-          </div>
-        )}
-
           {activeView === 'submission' && (
           <div>
-            <h2 className="text-xl font-semibold mb-6">Final Dissertation Submission</h2>
-            <FinalSubmission />
+            <h2 className="text-xl font-semibold mb-6">Dissertation Submission</h2>
+            <FinalSubmission 
+              projectData={currentProject || (dashboardData.projects.length > 0 ? dashboardData.projects[0] : null)} 
+              refreshDashboard={refreshDashboard}
+            />
           </div>
         )}
 

@@ -849,7 +849,7 @@ const Dashboard = () => {
                                   className="btn btn-success btn-sm"
                                 >
                                   Complete
-                                </button>
+                              </button>
                               </div>
                             </div>
                           </div>
@@ -1197,8 +1197,8 @@ const Dashboard = () => {
                           <p className="text-gray-500">No assigned students found.</p>
                 </div>
               )}
-            </>
-          )}
+                                </>
+                              )}
         </div>
               )}
             </>
@@ -1212,12 +1212,12 @@ const Dashboard = () => {
           <div className="bg-white rounded-lg shadow-lg max-w-md w-full mx-4">
             <div className="p-4 border-b border-gray-200 flex justify-between items-center">
               <h3 className="text-lg font-medium text-gray-900">Schedule Meeting</h3>
-              <button 
+                                  <button 
                 onClick={closeMeetingModal}
                 className="text-gray-400 hover:text-gray-500"
-              >
+                                  >
                 <FaTimes />
-              </button>
+                                  </button>
             </div>
             
             <form onSubmit={handleSubmitMeeting} className="p-4">
@@ -1302,24 +1302,24 @@ const Dashboard = () => {
               </div>
               
               <div className="flex justify-end space-x-2 mt-4">
-                <button
+                                  <button 
                   type="button"
                   onClick={closeMeetingModal}
                   className="btn btn-secondary"
-                >
+                                  >
                   Cancel
-                </button>
-                <button
+                                  </button>
+                                <button 
                   type="submit"
                   className="btn btn-primary"
-                >
+                                >
                   Schedule Meeting
-                </button>
+                                </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+                  </div>
+                </div>
+              )}
       
       {/* Edit Meeting Modal */}
       {editMeetingModal.isOpen && (
@@ -1333,7 +1333,7 @@ const Dashboard = () => {
               >
                 <FaTimes />
               </button>
-            </div>
+        </div>
             
             <form onSubmit={handleSubmitEditMeeting} className="p-4">
               <div className="mb-4">
@@ -1348,7 +1348,7 @@ const Dashboard = () => {
                   onChange={handleEditMeetingInputChange}
                   required
                 />
-              </div>
+      </div>
               
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1">

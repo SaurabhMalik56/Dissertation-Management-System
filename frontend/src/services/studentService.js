@@ -29,7 +29,7 @@ const getStudentProjects = async (token) => {
 // Get student's meetings
 const getStudentMeetings = async (token, forceRefresh = false) => {
   try {
-    setAuthToken(token);
+  setAuthToken(token);
     
     console.log('Fetching student meetings, forceRefresh:', forceRefresh);
     
@@ -325,6 +325,18 @@ const getNotifications = async (token) => {
   return response.data;
 };
 
+// Mark notifications as read
+const markNotificationsAsRead = async (notificationIds, token) => {
+  try {
+    setAuthToken(token);
+    const response = await axios.put(`${API_URL}/students/notifications/mark-read`, { notificationIds });
+    return response.data;
+  } catch (error) {
+    console.error('Error marking notifications as read:', error);
+    throw error;
+  }
+};
+
 // Submit final dissertation
 const submitFinalDissertation = async (dissertationData, token) => {
   setAuthToken(token);
@@ -490,6 +502,18 @@ const getMeetingDetails = async (meetingId, token) => {
   }
 };
 
+// Get detailed project information by ID
+const getProjectDetails = async (projectId, token) => {
+  try {
+    setAuthToken(token);
+    const response = await axios.get(`${API_URL}/students/projects/${projectId}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching project details:', error);
+    throw error;
+  }
+};
+
 const studentService = {
   getStudentDashboard,
   getStudentProjects,
@@ -498,10 +522,12 @@ const studentService = {
   submitProposal,
   updateProgress,
   getNotifications,
+  markNotificationsAsRead,
   submitFinalDissertation,
   getEvaluationResults,
   getMeetingsFromGuide,
-  getMeetingDetails
+  getMeetingDetails,
+  getProjectDetails
 };
 
 export default studentService; 
