@@ -4,19 +4,18 @@ import { toast } from 'react-toastify';
 import { 
   FaBook, 
   FaCalendarAlt, 
-  FaChartLine, 
-  FaCheckCircle, 
-  FaClock, 
   FaFileAlt, 
   FaUserTie, 
   FaClipboardList, 
   FaBell, 
-  FaGraduationCap,
   FaHome,
   FaTachometerAlt,
   FaBars,
   FaTimes,
-  FaSync
+  FaSync,
+  FaClock,
+  FaChartLine,
+  FaGraduationCap
 } from 'react-icons/fa';
 import studentService from '../../services/studentService';
 
@@ -24,8 +23,6 @@ import studentService from '../../services/studentService';
 import ProposalForm from '../../components/student/ProposalForm';
 import MeetingsList from '../../components/student/MeetingsList';
 import GuideInfo from '../../components/student/GuideInfo';
-import ProgressUpdate from '../../components/student/ProgressUpdate';
-import FinalSubmission from '../../components/student/FinalSubmission';
 import EvaluationResults from '../../components/student/EvaluationResults';
 import CurrentProject from '../../components/student/CurrentProject';
 
@@ -269,7 +266,6 @@ const Dashboard = () => {
     { id: 'proposal', label: 'Submit Proposal', icon: <FaFileAlt className="w-5 h-5" /> },
     { id: 'guide', label: 'View Guide', icon: <FaUserTie className="w-5 h-5" /> },
     { id: 'meetings', label: 'Meetings', icon: <FaCalendarAlt className="w-5 h-5" /> },
-    { id: 'submission', label: 'Final Submission', icon: <FaGraduationCap className="w-5 h-5" /> },
     { id: 'evaluation', label: 'Evaluation', icon: <FaClipboardList className="w-5 h-5" /> },
     { id: 'notifications', label: 'Notifications', icon: <FaBell className="w-5 h-5" />, 
       badge: dashboardData.notifications.filter(n => !n.read).length || null }
@@ -350,11 +346,11 @@ const Dashboard = () => {
                   <span className="text-sm">View Meetings</span>
           </button>
           <button
-                  onClick={() => setActiveView('submission')}
+                  onClick={() => setActiveView('guide')}
                   className="bg-white bg-opacity-20 hover:bg-opacity-30 transition-colors duration-200 rounded-lg p-4 text-white text-center"
                 >
-                  <FaGraduationCap className="text-xl mx-auto mb-2" />
-                  <span className="text-sm">Final Submission</span>
+                  <FaUserTie className="text-xl mx-auto mb-2" />
+                  <span className="text-sm">View Guide</span>
                     </button>
                   </div>
                 </div>
@@ -603,16 +599,6 @@ const Dashboard = () => {
               <h2 className="text-xl font-semibold mb-2">Faculty-Student Meetings</h2>
               <p className="text-gray-500 mb-6">Meetings are scheduled by your faculty guide. You can view meeting details here but cannot create or edit meetings.</p>
             <MeetingsList />
-          </div>
-        )}
-
-          {activeView === 'submission' && (
-          <div>
-            <h2 className="text-xl font-semibold mb-6">Dissertation Submission</h2>
-            <FinalSubmission 
-              projectData={currentProject || (dashboardData.projects.length > 0 ? dashboardData.projects[0] : null)} 
-              refreshDashboard={refreshDashboard}
-            />
           </div>
         )}
 
