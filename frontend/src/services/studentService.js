@@ -218,8 +218,29 @@ const getUserId = (token) => {
 // Get student's assigned guide
 const getStudentGuide = async (token) => {
   setAuthToken(token);
-  const response = await axios.get(`${API_URL}/students/guide`);
-  return response.data;
+  try {
+    // First get the basic guide info (might only contain ID and email)
+    const response = await axios.get(`${API_URL}/students/guide`);
+    console.log("Basic guide data from API:", response.data);
+    
+    if (response.data && response.data._id) {
+      // If we have a guide ID, fetch the complete faculty details
+      try {
+        const guideDetailsResponse = await axios.get(`${API_URL}/faculty/${response.data._id}`);
+        console.log("Complete guide data from API:", guideDetailsResponse.data);
+        return guideDetailsResponse.data;
+      } catch (detailsError) {
+        console.error("Error fetching complete guide details:", detailsError);
+        // Fall back to basic guide data if details fetch fails
+        return response.data;
+      }
+    }
+    
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching guide:", error);
+    throw error;
+  }
 };
 
 // Submit a dissertation proposal
