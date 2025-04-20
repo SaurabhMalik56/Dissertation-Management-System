@@ -67,6 +67,8 @@ const Dashboard = () => {
   const [students, setStudents] = useState([]);
   const [projects, setProjects] = useState([]);
   const [meetings, setMeetings] = useState([]);
+  const [projectDetails, setProjectDetails] = useState({});
+  const [loadingProjects, setLoadingProjects] = useState(false);
   const [stats, setStats] = useState({
     totalStudents: 0,
     activeProjects: 0,
@@ -107,6 +109,61 @@ const Dashboard = () => {
     fetchDashboardData();
   }, [user]);
 
+  // Effect to fetch detailed project information when activeTab changes to 'projects'
+  useEffect(() => {
+    if (activeTab === 'projects' && projects.length > 0 && user?.token) {
+      fetchProjectDetails();
+    }
+  }, [activeTab, projects, user]);
+
+  // Function to fetch detailed project information for all projects
+  const fetchProjectDetails = async () => {
+    try {
+      setLoadingProjects(true);
+      
+      // Create a map to store project details
+      const detailsMap = {};
+      
+      // Fetch details for each project
+      const fetchPromises = projects.map(async (project) => {
+        try {
+          const projectId = project.id || project._id;
+          console.log(`Fetching details for project: ${projectId}`);
+          
+          const details = await facultyService.getProjectDetails(projectId, user.token);
+          
+          // Store in the map
+          detailsMap[projectId] = {
+            ...details,
+            // Ensure we have fallbacks for all fields
+            title: details.title || project.title || 'Untitled Project',
+            description: details.description || 'No description available',
+            technologies: details.technologies || [],
+            problemStatement: details.problemStatement || 'Not specified',
+            expectedOutcome: details.expectedOutcome || 'Not specified'
+          };
+          
+          return details;
+        } catch (error) {
+          console.error(`Error fetching details for project ${project.id || project._id}:`, error);
+          return null;
+        }
+      });
+      
+      // Wait for all fetches to complete
+      await Promise.all(fetchPromises);
+      
+      // Update state with fetched details
+      setProjectDetails(detailsMap);
+      console.log('Updated project details:', detailsMap);
+      
+    } catch (error) {
+      console.error('Error fetching project details:', error);
+    } finally {
+      setLoadingProjects(false);
+    }
+  };
+
   const fetchDashboardData = async () => {
       try {
         setIsLoading(true);
@@ -124,6 +181,30 @@ const Dashboard = () => {
       // Update state with fetched data
       setStudents(data.students || []);
       setMeetings(data.meetings || []);
+      
+      // Extract projects from students' data
+      const extractedProjects = (data.students || [])
+        .filter(student => student.project)
+        .map(student => {
+          // Convert project to proper format
+          return {
+            id: student.project._id || student.project.id || `project-${student._id}`,
+            title: student.project.title || 'Untitled Project',
+            student: student.fullName || student.name || 'Unknown Student',
+            studentId: student._id || student.id,
+            progress: student.project.progress || student.progress || 0,
+            deadline: student.project.deadline || new Date().toISOString(),
+            description: student.project.description || 'No description available',
+            domain: student.project.domain || 'Not specified',
+            technologies: student.project.technologies || 'Not specified',
+            status: student.project.status || (student.progress >= 100 ? 'Completed' : 'In Progress'),
+            problemStatement: student.project.problemStatement || 'Not specified',
+            expectedOutcome: student.project.expectedOutcome || 'Not specified'
+          };
+        });
+      
+      setProjects(extractedProjects);
+      
       setStats(data.stats || {
         totalStudents: 0,
         activeProjects: 0,
@@ -131,7 +212,7 @@ const Dashboard = () => {
         pendingRequests: 0
       });
       
-      console.log(`Fetched ${data.students?.length || 0} students and ${data.meetings?.length || 0} meetings`);
+      console.log(`Fetched ${data.students?.length || 0} students, ${data.meetings?.length || 0} meetings, and ${extractedProjects.length} projects`);
       
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
@@ -147,9 +228,45 @@ const Dashboard = () => {
           ]);
           
           setProjects([
-            { id: 1, title: 'Machine Learning in Healthcare', student: 'John Doe', progress: 65, deadline: '2023-12-15' },
-            { id: 2, title: 'Blockchain Applications', student: 'Jane Smith', progress: 20, deadline: '2024-02-28' },
-            { id: 3, title: 'Cloud Computing Solutions', student: 'Robert Johnson', progress: 45, deadline: '2024-01-20' }
+            { 
+              id: 1, 
+              title: 'Machine Learning in Healthcare', 
+              student: 'John Doe', 
+              progress: 65, 
+              deadline: '2023-12-15', 
+              description: 'Using ML algorithms to predict patient outcomes', 
+              domain: 'Healthcare', 
+              technologies: ['Python', 'TensorFlow', 'scikit-learn'], 
+              status: 'In Progress',
+              problemStatement: 'Accurate prediction of patient outcomes is challenging due to diverse data sources and complex patterns',
+              expectedOutcome: 'Develop a machine learning model with 90%+ accuracy for predicting patient recovery timelines'
+            },
+            { 
+              id: 2, 
+              title: 'Blockchain Applications', 
+              student: 'Jane Smith', 
+              progress: 20, 
+              deadline: '2024-02-28', 
+              description: 'Exploring blockchain for supply chain management', 
+              domain: 'Finance', 
+              technologies: ['Ethereum', 'Solidity', 'Web3.js'], 
+              status: 'In Progress',
+              problemStatement: 'Supply chain lacks transparency and traceability for sensitive products',
+              expectedOutcome: 'Implement a blockchain-based system that ensures end-to-end product verification'
+            },
+            { 
+              id: 3, 
+              title: 'Cloud Computing Solutions', 
+              student: 'Robert Johnson', 
+              progress: 45, 
+              deadline: '2024-01-20', 
+              description: 'Implementing serverless architecture for scalable applications', 
+              domain: 'Cloud Computing', 
+              technologies: ['AWS Lambda', 'API Gateway', 'DynamoDB'], 
+              status: 'In Progress',
+              problemStatement: 'Traditional server architectures are costly and difficult to scale for variable workloads',
+              expectedOutcome: 'Create a fully serverless application with auto-scaling capabilities and 40% cost reduction'
+            }
           ]);
           
           setMeetings([
@@ -817,102 +934,263 @@ const Dashboard = () => {
             <>
               {/* Overview Tab */}
               {activeTab === 'overview' && (
-                <div className="space-y-6">
-                  <h2 className="text-xl font-semibold text-gray-800">Faculty Dashboard</h2>
-                  
-                  {/* Recent activity */}
-                  <div>
-                    <h3 className="text-lg font-medium text-gray-700 mb-3">Today's Schedule</h3>
-                    <div className="space-y-4">
-                      {meetings.filter(m => m.status === 'scheduled').slice(0, 2).map(meeting => (
-                        <div key={meeting.id || meeting._id} className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                          <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-                            <div>
-                              <h4 className="font-medium text-gray-800">{meeting.title}</h4>
-                              <p className="text-sm text-gray-500">
-                                With {typeof meeting.student === 'object' ? 
-                                  meeting.student.fullName || 'Student' : 
-                                  meeting.studentName || meeting.student || 'Student'}
-                              </p>
-                            </div>
-                            <div className="mt-2 md:mt-0 flex flex-col md:flex-row md:items-center justify-center">
-                              <span className="badge badge-primary mb-2 md:mb-0 md:mr-2">{formatDate(meeting.date)}</span>
-                              <div className="space-x-2">
-                              <button 
-                                onClick={() => handleMeetingAction(meeting.id, 'start')}
-                                className="btn btn-primary btn-sm"
-                              >
-                                Start Meeting
-                              </button>
-                                <button 
-                                  onClick={() => handleMeetingAction(meeting.id, 'complete')}
-                                  className="btn btn-success btn-sm"
-                                >
-                                  Complete
-                              </button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                      
-                      {meetings.filter(m => m.status === 'scheduled').length === 0 && (
-                        <p className="text-gray-500 italic">No meetings scheduled for today.</p>
-                      )}
+                <div className="space-y-8">
+                  {/* Welcome banner with quick summary */}
+                  <div className="bg-gradient-to-r from-indigo-600 to-blue-500 rounded-lg shadow-lg p-6 text-white">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+                      <div>
+                        <h2 className="text-2xl font-bold mb-2">Welcome back, {user?.fullName || 'Professor'}</h2>
+                        <p className="text-indigo-100">You have {stats.upcomingMeetings} upcoming meetings and {stats.totalStudents} students under your guidance.</p>
+                      </div>
+                      <div className="mt-4 md:mt-0">
+                        <button 
+                          onClick={() => setActiveTab('meetings')}
+                          className="px-4 py-2 bg-white text-indigo-600 rounded-md font-medium hover:bg-indigo-50 transition"
+                        >
+                          View Schedule
+                        </button>
+                      </div>
                     </div>
                   </div>
                   
-                  {/* Student progress */}
-                  <div>
-                    <h3 className="text-lg font-medium text-gray-700 mb-3">Student Progress</h3>
-                    <div className="space-y-4">
-                      {students.map(student => (
-                        <div key={student.id || student._id} className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                          <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-                            <div>
-                              <h4 className="font-medium text-gray-800">
-                                {student.fullName || student.name || 'Student'}
-                              </h4>
-                              <p className="text-sm text-gray-500">
-                                {typeof student.project === 'object' 
-                                  ? student.project.title || 'Project'
-                                  : student.project || 'Project'}
-                              </p>
-                              <p className="text-xs text-gray-400">Roll No: {student.rollNo || student.rollNumber || 'N/A'}</p>
-                            </div>
-                            <div className="mt-3 md:mt-0">
-                              <div className="flex items-center">
-                                <span className="text-sm font-medium text-gray-700 mr-2">{student.progress}%</span>
-                                <div className="w-32 bg-gray-200 rounded-full h-2">
-                                  <div 
-                                    className={`h-2 rounded-full ${
-                                      student.progress < 30 ? 'bg-red-500' : 
-                                      student.progress < 70 ? 'bg-yellow-500' : 
-                                      'bg-green-500'
-                                    }`}
-                                    style={{ width: `${student.progress}%` }}
-                                  ></div>
+                  {/* Improved stats cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div className="bg-white rounded-lg shadow-md p-5 border-t-4 border-indigo-500 hover:shadow-lg transition duration-300 transform hover:-translate-y-1">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-gray-500 text-sm uppercase tracking-wider">Students</p>
+                          <h3 className="text-3xl font-bold text-gray-800 mt-1">{stats.totalStudents}</h3>
+                        </div>
+                        <div className="bg-indigo-100 p-3 rounded-full">
+                          <svg className="w-7 h-7 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="bg-white rounded-lg shadow-md p-5 border-t-4 border-blue-500 hover:shadow-lg transition duration-300 transform hover:-translate-y-1">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-gray-500 text-sm uppercase tracking-wider">Projects</p>
+                          <h3 className="text-3xl font-bold text-gray-800 mt-1">{stats.activeProjects}</h3>
+                        </div>
+                        <div className="bg-blue-100 p-3 rounded-full">
+                          <svg className="w-7 h-7 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="bg-white rounded-lg shadow-md p-5 border-t-4 border-green-500 hover:shadow-lg transition duration-300 transform hover:-translate-y-1">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-gray-500 text-sm uppercase tracking-wider">Meetings</p>
+                          <h3 className="text-3xl font-bold text-gray-800 mt-1">{stats.upcomingMeetings}</h3>
+                        </div>
+                        <div className="bg-green-100 p-3 rounded-full">
+                          <svg className="w-7 h-7 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="bg-white rounded-lg shadow-md p-5 border-t-4 border-yellow-500 hover:shadow-lg transition duration-300 transform hover:-translate-y-1">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-gray-500 text-sm uppercase tracking-wider">Pending</p>
+                          <h3 className="text-3xl font-bold text-gray-800 mt-1">{stats.pendingRequests}</h3>
+                        </div>
+                        <div className="bg-yellow-100 p-3 rounded-full">
+                          <svg className="w-7 h-7 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Main content area with two columns */}
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    {/* Left column */}
+                    <div className="lg:col-span-3 space-y-8">
+                      {/* Today's Schedule */}
+                      <div className="bg-white rounded-lg shadow-md overflow-hidden">
+                        <div className="px-6 py-4 bg-indigo-50 border-b border-indigo-100 flex justify-between items-center">
+                          <div className="flex items-center">
+                            <svg className="w-5 h-5 text-indigo-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                            </svg>
+                            <h3 className="text-lg font-semibold text-gray-800">Today's Schedule</h3>
+                          </div>
+                          <button 
+                            onClick={() => setActiveTab('meetings')}
+                            className="text-sm text-indigo-600 hover:text-indigo-800 font-medium"
+                          >
+                            View All
+                          </button>
+                        </div>
+                        
+                        <div className="p-6">
+                          {meetings.filter(m => m.status === 'scheduled').length > 0 ? (
+                            <div className="divide-y divide-gray-200">
+                              {meetings.filter(m => m.status === 'scheduled').slice(0, 3).map(meeting => (
+                                <div key={meeting.id || meeting._id} className="py-4 first:pt-0 last:pb-0">
+                                  <div className="flex items-start">
+                                    <div className="flex-shrink-0 bg-indigo-100 rounded-full p-2 mt-1">
+                                      <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                      </svg>
+                                    </div>
+                                    <div className="ml-4 flex-1">
+                                      <div className="flex justify-between">
+                                        <h4 className="text-base font-medium text-gray-900">{meeting.title || `Meeting ${meeting.meetingNumber || '#'}`}</h4>
+                                        <span className="text-sm text-gray-500">{formatDate(meeting.date || meeting.scheduledDate || meeting.dateTime)}</span>
+                                      </div>
+                                      <p className="mt-1 text-sm text-gray-500">
+                                        With {typeof meeting.student === 'object' ? 
+                                          meeting.student.fullName || 'Student' : 
+                                          meeting.studentName || meeting.student || 'Student'}
+                                      </p>
+                                      <div className="mt-2 flex flex-wrap gap-2 justify-end">
+                                        <button 
+                                          onClick={() => handleMeetingAction(meeting.id || meeting._id, 'start')}
+                                          className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded text-xs font-medium hover:bg-indigo-200"
+                                        >
+                                          Start Meeting
+                                        </button>
+                                        <button 
+                                          onClick={() => handleMeetingAction(meeting.id || meeting._id, 'complete')}
+                                          className="px-3 py-1 bg-green-100 text-green-700 rounded text-xs font-medium hover:bg-green-200"
+                                        >
+                                          Complete
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
                                 </div>
-                              </div>
-                              
-                              <div className="mt-2 flex flex-wrap gap-2 justify-center">
-                                <button 
-                                  onClick={() => handleUpdateProgress(student.id)}
-                                  className="btn btn-secondary btn-sm"
-                                >
-                                  Update
-                                </button>
-                                <button 
-                                  onClick={() => handleScheduleMeeting(student.id)}
-                                  className="btn btn-primary btn-sm"
-                                >
-                                  Schedule
-                                </button>
-                              </div>
+                              ))}
                             </div>
+                          ) : (
+                            <div className="text-center py-8">
+                              <svg className="w-12 h-12 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                              </svg>
+                              <p className="text-gray-500">No meetings scheduled for today.</p>
+                              <button 
+                                onClick={() => setActiveTab('meetings')}
+                                className="mt-2 text-indigo-600 hover:text-indigo-800 text-sm font-medium"
+                              >
+                                Schedule a meeting
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {/* Quick Actions */}
+                      <div className="bg-white rounded-lg shadow-md overflow-hidden">
+                        <div className="px-6 py-4 bg-indigo-50 border-b border-indigo-100">
+                          <h3 className="text-lg font-semibold text-gray-800">Quick Actions</h3>
+                        </div>
+                        <div className="p-6">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <button 
+                              onClick={() => setActiveTab('meetings')}
+                              className="flex items-center p-3 bg-white border border-gray-200 rounded-lg hover:bg-indigo-50 hover:border-indigo-200 transition duration-300"
+                            >
+                              <div className="bg-indigo-100 p-2 rounded-full">
+                                <svg className="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                              </div>
+                              <div className="ml-3 text-left">
+                                <h4 className="text-sm font-medium text-gray-900">Schedule Meeting</h4>
+                                <p className="text-xs text-gray-500">Create a new student meeting</p>
+                              </div>
+                            </button>
+                            
+                            <button 
+                              onClick={() => setActiveTab('students')}
+                              className="flex items-center p-3 bg-white border border-gray-200 rounded-lg hover:bg-indigo-50 hover:border-indigo-200 transition duration-300"
+                            >
+                              <div className="bg-green-100 p-2 rounded-full">
+                                <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                </svg>
+                              </div>
+                              <div className="ml-3 text-left">
+                                <h4 className="text-sm font-medium text-gray-900">Update Progress</h4>
+                                <p className="text-xs text-gray-500">Log student progress</p>
+                              </div>
+                            </button>
+                            
+                            <button 
+                              onClick={() => setActiveTab('projects')}
+                              className="flex items-center p-3 bg-white border border-gray-200 rounded-lg hover:bg-indigo-50 hover:border-indigo-200 transition duration-300"
+                            >
+                              <div className="bg-blue-100 p-2 rounded-full">
+                                <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                </svg>
+                              </div>
+                              <div className="ml-3 text-left">
+                                <h4 className="text-sm font-medium text-gray-900">Project Overview</h4>
+                                <p className="text-xs text-gray-500">Review active projects</p>
+                              </div>
+                            </button>
                           </div>
                         </div>
-                      ))}
+                      </div>
+                      
+                      {/* Recent Activities */}
+                      <div className="bg-white rounded-lg shadow-md overflow-hidden">
+                        <div className="px-6 py-4 bg-indigo-50 border-b border-indigo-100">
+                          <h3 className="text-lg font-semibold text-gray-800">Recent Activities</h3>
+                        </div>
+                        <div className="p-4">
+                          <div className="flow-root">
+                            <ul className="divide-y divide-gray-200">
+                              {meetings.slice(0, 5).map((meeting, index) => (
+                                <li key={meeting.id || meeting._id || index} className="py-4">
+                                  <div className="flex items-start">
+                                    <div className={`flex-shrink-0 rounded-full w-2 h-2 mt-2 ${
+                                      meeting.status === 'completed' ? 'bg-green-500' : 
+                                      meeting.status === 'scheduled' ? 'bg-blue-500' : 
+                                      'bg-yellow-500'
+                                    }`}></div>
+                                    <div className="ml-3 flex-1">
+                                      <p className="text-sm text-gray-900">
+                                        <span className="font-medium">
+                                          {typeof meeting.student === 'object' ? 
+                                            meeting.student.fullName || 'Student' : 
+                                            meeting.studentName || meeting.student || 'Student'}
+                                        </span>{' '}
+                                        <span>
+                                          {meeting.status === 'completed' ? 'attended a meeting' : 
+                                           meeting.status === 'scheduled' ? 'has a scheduled meeting' : 
+                                           'requested a meeting'}
+                                        </span>
+                                      </p>
+                                      <p className="text-xs text-gray-500 mt-1">
+                                        {formatDate(meeting.date || meeting.scheduledDate || meeting.dateTime)}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </li>
+                              ))}
+                              
+                              {meetings.length === 0 && (
+                                <li className="py-4 text-center">
+                                  <p className="text-gray-500 text-sm">No recent activities</p>
+                                </li>
+                              )}
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -962,62 +1240,116 @@ const Dashboard = () => {
                         <option>In Progress</option>
                         <option>Completed</option>
                       </select>
-                      <button className="btn btn-primary">Add Project</button>
                     </div>
                   </div>
                   
-                  <div className="table-container">
-                    <table className="table">
-                      <thead>
-                        <tr>
-                          <th>Project Title</th>
-                          <th>Student</th>
-                          <th>Progress</th>
-                          <th>Deadline</th>
-                          <th className="text-center">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {projects.map(project => (
-                          <tr key={project.id || project._id}>
-                            <td className="font-medium text-gray-800">{project.title}</td>
-                            <td>
-                              {typeof project.student === 'object' 
-                                ? project.student.fullName || project.student.name || 'Student'
-                                : project.student || 'Student'}
-                            </td>
-                            <td>
-                              <div className="flex items-center">
-                                <div className="w-32 bg-gray-200 rounded-full h-2 mr-2">
-                                  <div 
-                                    className={`h-2 rounded-full ${
-                                      project.progress < 30 ? 'bg-red-500' : 
-                                      project.progress < 70 ? 'bg-yellow-500' : 
-                                      'bg-green-500'
-                                    }`}
-                                    style={{ width: `${project.progress}%` }}
-                                  ></div>
-                                </div>
-                                <span className="text-sm">{project.progress}%</span>
+                  {loadingProjects ? (
+                    <div className="text-center py-10">
+                      <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                      <p className="mt-4 text-gray-600">Loading project details...</p>
+                    </div>
+                  ) : projects.length > 0 ? (
+                    <div className="space-y-6">
+                      {projects.map(project => {
+                        // Get detailed information for this project
+                        const projectId = project.id || project._id;
+                        const details = projectDetails[projectId] || {};
+                        
+                        return (
+                          <div key={projectId} className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
+                            <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-4">
+                              <h3 className="text-xl font-semibold text-indigo-600">
+                                {details.title || project.title}
+                              </h3>
+                              <div className="mt-2 md:mt-0">
+                                <span className={`px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full ${
+                                  details.status === 'completed' || project.status === 'completed' ? 'bg-green-100 text-green-800' : 
+                                  details.status === 'ongoing' || project.status === 'ongoing' ? 'bg-blue-100 text-blue-800' :
+                                  details.status === 'pending' || project.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                                  'bg-gray-100 text-gray-800'
+                                }`}>
+                                  {details.status || project.status || (project.progress >= 100 ? 'Completed' : 'In Progress')}
+                                </span>
                               </div>
-                            </td>
-                            <td>{new Date(project.deadline).toLocaleDateString()}</td>
-                            <td className="text-center">
-                              <button className="text-indigo-600 hover:text-indigo-900 mr-2">
-                                View
-                              </button>
-                              <button className="text-green-600 hover:text-green-900 mr-2">
-                                Evaluate
-                              </button>
-                              <button className="text-yellow-600 hover:text-yellow-900">
-                                Documents
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                              <div>
+                                <div className="mb-4">
+                                  <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-2">Student</h4>
+                                  <p className="text-gray-900">
+                                    {typeof project.student === 'object' 
+                                      ? project.student.fullName || project.student.name || 'Student'
+                                      : project.student || 'Student'}
+                                  </p>
+                                </div>
+                                
+                                <div className="mb-4">
+                                  <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-2">Description</h4>
+                                  <p className="text-gray-700">{details.description || project.description || 'No description available'}</p>
+                                </div>
+                              </div>
+                              
+                              <div>
+                                <div className="mb-4">
+                                  <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-2">Technologies</h4>
+                                  <div className="flex flex-wrap gap-2">
+                                    {details.technologies && (
+                                      Array.isArray(details.technologies) ? 
+                                        details.technologies.map((tech, index) => (
+                                          <span key={index} className="px-2 py-1 bg-indigo-50 text-indigo-700 rounded text-sm">
+                                            {tech}
+                                          </span>
+                                        )) : (
+                                          <span className="px-2 py-1 bg-indigo-50 text-indigo-700 rounded text-sm">
+                                            {details.technologies}
+                                          </span>
+                                        )
+                                    ) || (
+                                      project.technologies && (
+                                        Array.isArray(project.technologies) ? 
+                                          project.technologies.map((tech, index) => (
+                                            <span key={index} className="px-2 py-1 bg-indigo-50 text-indigo-700 rounded text-sm">
+                                              {tech}
+                                            </span>
+                                          )) : (
+                                            <span className="px-2 py-1 bg-indigo-50 text-indigo-700 rounded text-sm">
+                                              {project.technologies}
+                                            </span>
+                                          )
+                                      )
+                                    ) || (
+                                      <span className="text-gray-500">Not specified</span>
+                                    )}
+                                  </div>
+                                </div>
+                                
+                                <div className="mb-4">
+                                  <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-2">Problem Statement</h4>
+                                  <p className="text-gray-700">{details.problemStatement || project.problemStatement || 'Not specified'}</p>
+                                </div>
+                                
+                                <div className="mb-4">
+                                  <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-2">Expected Outcome</h4>
+                                  <p className="text-gray-700">{details.expectedOutcome || project.expectedOutcome || 'Not specified'}</p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-center py-10">
+                      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto">
+                        <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                      </div>
+                      <h3 className="mt-4 text-lg font-medium text-gray-900">No projects found</h3>
+                      <p className="mt-1 text-gray-500">You don't have any supervised projects at the moment.</p>
+                    </div>
+                  )}
                 </div>
               )}
               
@@ -1157,7 +1489,7 @@ const Dashboard = () => {
                                             <td className="px-4 py-3 whitespace-nowrap text-center text-sm font-medium">
                                               {status === 'not-conducted' || !meeting ? (
                                   <button 
-                                                  onClick={() => handleScheduleMeeting(studentId, null, meetingNumber)}
+                                                  onClick={() => handleScheduleMeeting(studentId)}
                                     className="text-indigo-600 hover:text-indigo-900 mr-2"
                                   >
                                                   Schedule

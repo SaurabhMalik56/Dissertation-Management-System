@@ -412,19 +412,56 @@ const getDashboardData = async (token) => {
       getMeetings(token)
     ]);
     
+    // Process students to ensure project data is properly formatted
+    const processedStudents = students.map(student => {
+      // Handle project data
+      let projectData = student.project;
+      if (projectData) {
+        // If project is just a string, convert to object
+        if (typeof projectData === 'string') {
+          projectData = {
+            title: projectData,
+            _id: `project-${student._id || student.id}`,
+            status: 'approved',
+            progress: student.progress || 0
+          };
+        }
+        
+        // Ensure project has all necessary fields
+        projectData = {
+          ...projectData,
+          _id: projectData._id || `project-${student._id || student.id}`,
+          title: projectData.title || 'Untitled Project',
+          description: projectData.description || 'No description available',
+          domain: projectData.domain || 'Not specified',
+          technologies: projectData.technologies || 'Not specified',
+          status: projectData.status || (student.progress >= 100 ? 'Completed' : 'In Progress'),
+          progress: projectData.progress || student.progress || 0,
+          problemStatement: projectData.problemStatement || 'Not specified',
+          expectedOutcome: projectData.expectedOutcome || 'Not specified'
+        };
+      }
+
+      return {
+        ...student,
+        project: projectData
+      };
+    });
+    
     // Calculate statistics
     const stats = {
-      totalStudents: students.length,
-      activeProjects: students.filter(student => student.project && student.project.status === 'approved').length,
+      totalStudents: processedStudents.length,
+      activeProjects: processedStudents.filter(student => student.project && student.project.status === 'approved').length,
       upcomingMeetings: meetings.filter(meeting => 
         new Date(meeting.scheduledDate) > new Date() && 
         meeting.status === 'scheduled'
       ).length,
-      completedMeetings: meetings.filter(meeting => meeting.status === 'completed').length
+      completedMeetings: meetings.filter(meeting => meeting.status === 'completed').length,
+      pendingRequests: meetings.filter(meeting => meeting.status === 'pending').length || 0
     };
     
     return {
-      students,
+      students: processedStudents,
       meetings,
       stats
     };
@@ -609,6 +646,47 @@ const directUpdateMeeting = async (meetingId, updateData, token) => {
   }
 };
 
+// Get detailed project information
+const getProjectDetails = async (projectId, token) => {
+  try {
+    setAuthToken(token);
+    
+    console.log('Fetching detailed project information for project ID:', projectId);
+    
+    try {
+      const response = await axios.get(`${API_URL}/projects/${projectId}`);
+      console.log('Project details fetched successfully:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching project details:', error);
+      
+      // If we're in development and the API fails, return mock data
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Returning mock project data for development');
+        
+        // Find in mock data or create a basic mock project
+        const mockProject = mockData.students.find(s => s.project && (s.project._id === projectId || s.project.id === projectId))?.project || {
+          _id: projectId,
+          title: 'Mock Project Details',
+          description: 'This is mock project data for development purposes',
+          technologies: ['React', 'Node.js', 'MongoDB'],
+          problemStatement: 'Addressing the problem of manual workflow management',
+          expectedOutcome: 'A fully functional web-based system',
+          status: 'approved',
+          progress: 50
+        };
+        
+        return mockProject;
+      }
+      
+      throw error;
+    }
+  } catch (error) {
+    console.error('Error in getProjectDetails:', error);
+    throw error;
+  }
+};
+
 const facultyService = {
   getAssignedStudents,
   getMeetings,
@@ -620,7 +698,8 @@ const facultyService = {
   clearCache,
   createMeeting,
   getUserId,
-  directUpdateMeeting
+  directUpdateMeeting,
+  getProjectDetails
 };
 
 export default facultyService; 
