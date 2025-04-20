@@ -72,6 +72,7 @@ const Dashboard = () => {
   const [stats, setStats] = useState({
     totalStudents: 0,
     activeProjects: 0,
+    completedMeetings: 0,
     upcomingMeetings: 0,
     pendingRequests: 0
   });
@@ -205,11 +206,17 @@ const Dashboard = () => {
       
       setProjects(extractedProjects);
       
-      setStats(data.stats || {
-        totalStudents: 0,
-        activeProjects: 0,
-        upcomingMeetings: 0,
-        pendingRequests: 0
+      // Calculate stats based on data
+      const meetingsArray = data.meetings || [];
+      const completedMeetings = meetingsArray.filter(m => m.status === 'completed').length;
+      const upcomingMeetings = meetingsArray.filter(m => m.status === 'scheduled').length;
+      
+      setStats({
+        totalStudents: data.students?.length || 0,
+        activeProjects: extractedProjects.length,
+        completedMeetings,
+        upcomingMeetings,
+        pendingRequests: meetingsArray.filter(m => m.status === 'pending').length
       });
       
       console.log(`Fetched ${data.students?.length || 0} students, ${data.meetings?.length || 0} meetings, and ${extractedProjects.length} projects`);
@@ -279,6 +286,7 @@ const Dashboard = () => {
           setStats({
             totalStudents: 3,
             activeProjects: 3,
+            completedMeetings: 1,
             upcomingMeetings: 2,
             pendingRequests: 1
           });
@@ -560,7 +568,7 @@ const Dashboard = () => {
           // Update stats
           setStats(prevStats => ({
             ...prevStats,
-            upcomingMeetings: prevStats.upcomingMeetings - 1
+            upcomingMeetings: Math.max(0, prevStats.upcomingMeetings - 1)
           }));
           
           toast.success('Meeting cancelled successfully');
@@ -606,7 +614,8 @@ const Dashboard = () => {
           // Update stats
           setStats(prevStats => ({
             ...prevStats,
-            upcomingMeetings: prevStats.upcomingMeetings - 1
+            upcomingMeetings: Math.max(0, prevStats.upcomingMeetings - 1),
+            completedMeetings: prevStats.completedMeetings + 1
           }));
           
           toast.success('Meeting marked as completed');
@@ -782,7 +791,8 @@ const Dashboard = () => {
         // Update stats
         setStats(prevStats => ({
           ...prevStats,
-          upcomingMeetings: Math.max(0, prevStats.upcomingMeetings - 1)
+          upcomingMeetings: Math.max(0, prevStats.upcomingMeetings - 1),
+          completedMeetings: prevStats.completedMeetings + 1
         }));
         
         // Refresh meetings data
@@ -865,7 +875,7 @@ const Dashboard = () => {
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between">
                       <div>
                         <h2 className="text-2xl font-bold mb-2">Welcome back, {user?.fullName || 'Professor'}</h2>
-                        <p className="text-indigo-100">You have {stats.upcomingMeetings} upcoming meetings and {stats.totalStudents} students under your guidance.</p>
+                        <p className="text-indigo-100">You have {stats.upcomingMeetings} upcoming meetings and {stats.completedMeetings} meetings completed with {stats.totalStudents} students.</p>
                       </div>
                       <div className="mt-4 md:mt-0">
                         <button 
@@ -911,8 +921,8 @@ const Dashboard = () => {
                     <div className="bg-white rounded-lg shadow-md p-5 border-t-4 border-green-500 hover:shadow-lg transition duration-300 transform hover:-translate-y-1">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-gray-500 text-sm uppercase tracking-wider">Meetings</p>
-                          <h3 className="text-3xl font-bold text-gray-800 mt-1">{stats.upcomingMeetings}</h3>
+                          <p className="text-gray-500 text-sm uppercase tracking-wider">Meetings Completed</p>
+                          <h3 className="text-3xl font-bold text-gray-800 mt-1">{stats.completedMeetings || meetings.filter(m => m.status === 'completed').length}</h3>
                         </div>
                         <div className="bg-green-100 p-3 rounded-full">
                           <svg className="w-7 h-7 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -925,8 +935,8 @@ const Dashboard = () => {
                     <div className="bg-white rounded-lg shadow-md p-5 border-t-4 border-yellow-500 hover:shadow-lg transition duration-300 transform hover:-translate-y-1">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-gray-500 text-sm uppercase tracking-wider">Pending</p>
-                          <h3 className="text-3xl font-bold text-gray-800 mt-1">{stats.pendingRequests}</h3>
+                          <p className="text-gray-500 text-sm uppercase tracking-wider">Upcoming Meetings</p>
+                          <h3 className="text-3xl font-bold text-gray-800 mt-1">{stats.upcomingMeetings}</h3>
                         </div>
                         <div className="bg-yellow-100 p-3 rounded-full">
                           <svg className="w-7 h-7 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
