@@ -166,6 +166,38 @@ function App() {
               </ProtectedRoute>
             } 
           />
+          <Route 
+            path="faculty/students" 
+            element={
+              <ProtectedRoute allowedRoles={['faculty']}>
+                <FacultyDashboard />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="faculty/projects" 
+            element={
+              <ProtectedRoute allowedRoles={['faculty']}>
+                <FacultyDashboard />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="faculty/meetings" 
+            element={
+              <ProtectedRoute allowedRoles={['faculty']}>
+                <FacultyDashboard />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="faculty/profile" 
+            element={
+              <ProtectedRoute allowedRoles={['faculty']}>
+                <FacultyDashboard />
+              </ProtectedRoute>
+            } 
+          />
 
           {/* HOD routes */}
           <Route 

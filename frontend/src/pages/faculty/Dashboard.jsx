@@ -12,6 +12,7 @@ import {
   FaCheck
 } from 'react-icons/fa';
 import axios from 'axios';
+import { useLocation } from 'react-router-dom';
 import facultyService from '../../services/facultyService';
 import ProfileSection from '../../components/faculty/ProfileSection';
 import AssignedStudents from '../../components/faculty/AssignedStudents';
@@ -64,6 +65,7 @@ window.SHARED_MEETINGS_STORE = window.SHARED_MEETINGS_STORE || {
 const Dashboard = () => {
   const { user } = useSelector((state) => state.auth);
   const [activeTab, setActiveTab] = useState('overview');
+  const location = useLocation();
   const [students, setStudents] = useState([]);
   const [projects, setProjects] = useState([]);
   const [meetings, setMeetings] = useState([]);
@@ -104,6 +106,22 @@ const Dashboard = () => {
       status: ''
     }
   });
+
+  useEffect(() => {
+    // Set active tab based on URL path
+    const path = location.pathname;
+    if (path.includes('/faculty/students')) {
+      setActiveTab('students');
+    } else if (path.includes('/faculty/projects')) {
+      setActiveTab('projects');
+    } else if (path.includes('/faculty/meetings')) {
+      setActiveTab('meetings');
+    } else if (path.includes('/faculty/profile')) {
+      setActiveTab('profile');
+    } else {
+      setActiveTab('overview');
+    }
+  }, [location.pathname]);
 
   useEffect(() => {
     // Fetch data on component mount
@@ -823,7 +841,14 @@ const Dashboard = () => {
               <li key="tab-overview" className="mr-2">
                 <button
                   className={`tab ${activeTab === 'overview' ? 'tab-active' : 'tab-inactive'}`}
-                  onClick={() => setActiveTab('overview')}
+                  onClick={() => {
+                    setActiveTab('overview');
+                    // Fetch updated dashboard data when switching to overview
+                    if (activeTab !== 'overview') {
+                      fetchDashboardData();
+                      toast.info("Refreshing dashboard data...");
+                    }
+                  }}
                 >
                   Overview
                 </button>
@@ -831,7 +856,22 @@ const Dashboard = () => {
               <li key="tab-students" className="mr-2">
                 <button
                   className={`tab ${activeTab === 'students' ? 'tab-active' : 'tab-inactive'}`}
-                  onClick={() => setActiveTab('students')}
+                  onClick={() => {
+                    setActiveTab('students');
+                    // Reload student data if switching from a different tab
+                    if (activeTab !== 'students' && user?.token) {
+                      setIsLoading(true);
+                      facultyService.getDashboardData(user.token)
+                        .then(data => {
+                          setStudents(data.students || []);
+                          setIsLoading(false);
+                        })
+                        .catch(err => {
+                          console.error("Error fetching students:", err);
+                          setIsLoading(false);
+                        });
+                    }
+                  }}
                 >
                   Students
                 </button>
@@ -839,7 +879,17 @@ const Dashboard = () => {
               <li key="tab-projects" className="mr-2">
                 <button
                   className={`tab ${activeTab === 'projects' ? 'tab-active' : 'tab-inactive'}`}
-                  onClick={() => setActiveTab('projects')}
+                  onClick={() => {
+                    setActiveTab('projects');
+                    // If we switch to projects and haven't loaded project details yet
+                    if (activeTab !== 'projects' && 
+                        Object.keys(projectDetails).length === 0 && 
+                        projects.length > 0 && 
+                        user?.token) {
+                      setLoadingProjects(true);
+                      fetchProjectDetails();
+                    }
+                  }}
                 >
                   Projects
                 </button>
@@ -847,9 +897,36 @@ const Dashboard = () => {
               <li key="tab-meetings" className="mr-2">
                 <button
                   className={`tab ${activeTab === 'meetings' ? 'tab-active' : 'tab-inactive'}`}
-                  onClick={() => setActiveTab('meetings')}
+                  onClick={() => {
+                    setActiveTab('meetings');
+                    // Refresh meetings list when switching to meetings tab
+                    if (activeTab !== 'meetings' && user?.token) {
+                      setIsLoading(true);
+                      facultyService.clearCache();
+                      fetchDashboardData()
+                        .then(() => {
+                          toast.success("Meetings refreshed");
+                        })
+                        .catch(err => {
+                          toast.error("Failed to refresh meetings");
+                        })
+                        .finally(() => {
+                          setIsLoading(false);
+                        });
+                    }
+                  }}
                 >
                   Meetings
+                </button>
+              </li>
+              <li key="tab-profile" className="mr-2">
+                <button
+                  className={`tab ${activeTab === 'profile' ? 'tab-active' : 'tab-inactive'}`}
+                  onClick={() => {
+                    setActiveTab('profile');
+                  }}
+                >
+                  Profile
                 </button>
               </li>
             </ul>
@@ -1033,7 +1110,19 @@ const Dashboard = () => {
                         <div className="p-6">
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <button 
-                              onClick={() => setActiveTab('meetings')}
+                              onClick={() => {
+                                setActiveTab('meetings');
+                                // Find the first student to schedule meeting with
+                                if (students.length > 0) {
+                                  const firstStudent = students[0];
+                                  handleScheduleMeeting(
+                                    firstStudent._id || firstStudent.id,
+                                    firstStudent.project?._id || firstStudent.project?.id
+                                  );
+                                } else {
+                                  toast.info("No students found to schedule meeting with.");
+                                }
+                              }}
                               className="flex items-center p-3 bg-white border border-gray-200 rounded-lg hover:bg-indigo-50 hover:border-indigo-200 transition duration-300"
                             >
                               <div className="bg-indigo-100 p-2 rounded-full">
@@ -1048,7 +1137,18 @@ const Dashboard = () => {
                             </button>
                             
                             <button 
-                              onClick={() => setActiveTab('students')}
+                              onClick={() => {
+                                setActiveTab('students');
+                                // If there are projects, open progress update for the first one
+                                if (projects.length > 0) {
+                                  const projectId = projects[0].id || projects[0]._id;
+                                  const studentId = projects[0].studentId;
+                                  handleUpdateProgress(projectId);
+                                  toast.info("Select a student to update their progress");
+                                } else {
+                                  toast.info("No projects found to update progress");
+                                }
+                              }}
                               className="flex items-center p-3 bg-white border border-gray-200 rounded-lg hover:bg-indigo-50 hover:border-indigo-200 transition duration-300"
                             >
                               <div className="bg-green-100 p-2 rounded-full">
@@ -1063,7 +1163,14 @@ const Dashboard = () => {
                             </button>
                             
                             <button 
-                              onClick={() => setActiveTab('projects')}
+                              onClick={() => {
+                                setActiveTab('projects');
+                                // Trigger fetch project details if not loaded yet
+                                if (Object.keys(projectDetails).length === 0 && projects.length > 0) {
+                                  fetchProjectDetails();
+                                  toast.info("Loading project details...");
+                                }
+                              }}
                               className="flex items-center p-3 bg-white border border-gray-200 rounded-lg hover:bg-indigo-50 hover:border-indigo-200 transition duration-300"
                             >
                               <div className="bg-blue-100 p-2 rounded-full">
@@ -1468,9 +1575,14 @@ const Dashboard = () => {
                               )}
         </div>
               )}
+              
+              {/* Profile Tab */}
+              {activeTab === 'profile' && (
+                <ProfileSection />
+              )}
             </>
           )}
-      </div>
+        </div>
       </div>
       
       {/* Meeting Scheduling Modal */}
