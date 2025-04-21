@@ -9,6 +9,8 @@ const Dashboard = () => {
   const [activeTab, setActiveTab] = useState('users');
   const [students, setStudents] = useState([]);
   const [hods, setHods] = useState([]);
+  const [faculty, setFaculty] = useState([]);
+  const [projects, setProjects] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [stats, setStats] = useState({
     totalUsers: 0,
@@ -26,9 +28,11 @@ const Dashboard = () => {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
+  const [isLoadingHods, setIsLoadingHods] = useState(false);
+  const [isLoadingFaculty, setIsLoadingFaculty] = useState(false);
+  const [isLoadingProjects, setIsLoadingProjects] = useState(false);
   const [isAddingStudent, setIsAddingStudent] = useState(false);
   const [error, setError] = useState(null);
-  const [isLoadingHods, setIsLoadingHods] = useState(false);
 
   useEffect(() => {
     if (user && user.token) {
@@ -42,6 +46,10 @@ const Dashboard = () => {
       fetchStudents();
     } else if (activeTab === 'departments' && hods.length === 0 && !isLoadingHods) {
       fetchHods();
+    } else if (activeTab === 'reports' && faculty.length === 0 && !isLoadingFaculty) {
+      fetchFaculty();
+    } else if (activeTab === 'settings' && projects.length === 0 && !isLoadingProjects) {
+      fetchProjects();
     }
   }, [activeTab]);
 
@@ -111,6 +119,44 @@ const Dashboard = () => {
       toast.error('Unable to fetch HODs from database');
     } finally {
       setIsLoadingHods(false);
+    }
+  };
+
+  const fetchFaculty = async () => {
+    if (!user || !user.token) return;
+    
+    try {
+      setIsLoadingFaculty(true);
+      setError(null);
+      
+      const response = await adminService.getAllFaculty(user.token);
+      setFaculty(response.data);
+      
+    } catch (error) {
+      console.error('Error fetching faculty:', error);
+      setError('Failed to load faculty data. Please try again.');
+      toast.error('Unable to fetch faculty from database');
+    } finally {
+      setIsLoadingFaculty(false);
+    }
+  };
+
+  const fetchProjects = async () => {
+    if (!user || !user.token) return;
+    
+    try {
+      setIsLoadingProjects(true);
+      setError(null);
+      
+      const response = await adminService.getAllProjects(user.token);
+      setProjects(response.data);
+      
+    } catch (error) {
+      console.error('Error fetching projects:', error);
+      setError('Failed to load project data. Please try again.');
+      toast.error('Unable to fetch projects from database');
+    } finally {
+      setIsLoadingProjects(false);
     }
   };
 
@@ -472,94 +518,157 @@ const Dashboard = () => {
                 </div>
               )}
               
-              {/* Reports Tab */}
+              {/* Reports Tab (now Faculty) */}
               {activeTab === 'reports' && (
                 <div>
-                  <h2 className="text-xl font-semibold text-gray-800 mb-6">Faculty Management</h2>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="card">
-                      <div className="card-header bg-gray-50">
-                        <h3 className="text-lg font-medium text-gray-700">User Summary</h3>
-                      </div>
-                      <div className="card-body">
-                        <div className="space-y-4 mt-4">
-                          <div className="flex justify-between">
-                            <span>Total Students:</span>
-                            <span className="font-medium">{stats.totalStudents}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Total Faculty:</span>
-                            <span className="font-medium">{stats.totalFaculty}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Total HODs:</span>
-                            <span className="font-medium">{stats.totalHods}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Total Users:</span>
-                            <span className="font-medium">{stats.totalUsers}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="card">
-                      <div className="card-header bg-gray-50">
-                        <h3 className="text-lg font-medium text-gray-700">Department Statistics</h3>
-                      </div>
-                      <div className="card-body">
-                        <div className="space-y-4">
-                          {departments.slice(0, 3).map(dept => (
-                            <div key={dept.id}>
-                              <div className="flex justify-between text-sm mb-1">
-                                <span className="text-gray-600">{dept.name}</span>
-                                <span className="font-medium">{dept.students} students</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                        <div className="mt-6 pt-6 border-t">
-                          <button className="btn btn-primary w-full">
-                            Download Reports
-                          </button>
-                        </div>
-                      </div>
-                    </div>
+                  <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-xl font-semibold text-gray-800">Faculty Management</h2>
+                    <button 
+                      className="btn btn-secondary"
+                      onClick={fetchFaculty}
+                      disabled={isLoadingFaculty}
+                    >
+                      {isLoadingFaculty ? 'Refreshing...' : 'Refresh List'}
+                    </button>
                   </div>
+                  
+                  {isLoadingFaculty ? (
+                    <div className="flex justify-center items-center h-64">
+                      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
+                      <p className="ml-3 text-indigo-500">Loading faculty from database...</p>
+                    </div>
+                  ) : error ? (
+                    <div className="bg-red-50 p-6 rounded-md">
+                      <p className="text-red-800">{error}</p>
+                      <button 
+                        className="mt-4 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700" 
+                        onClick={fetchFaculty}
+                      >
+                        Try Again
+                      </button>
+                    </div>
+                  ) : faculty.length === 0 ? (
+                    <div className="bg-gray-50 p-6 text-center rounded-md">
+                      <p className="text-gray-500">No faculty members found in the database.</p>
+                    </div>
+                  ) : (
+                    <div className="table-container">
+                      <table className="w-full border-collapse">
+                        <thead>
+                          <tr>
+                            <th className="text-left py-3 px-6 border-b border-gray-200">Full Name</th>
+                            <th className="text-left py-3 px-6 border-b border-gray-200">Email</th>
+                            <th className="text-left py-3 px-6 border-b border-gray-200">Assigned Students</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {faculty.map(member => (
+                            <tr key={member.id} className="hover:bg-gray-50">
+                              <td className="py-3 px-6 border-b border-gray-200">{member.name}</td>
+                              <td className="py-3 px-6 border-b border-gray-200">{member.email}</td>
+                              <td className="py-3 px-6 border-b border-gray-200">
+                                <span className="inline-flex items-center">
+                                  <span className={`w-2 h-2 mr-2 rounded-full ${member.assignedStudents > 0 ? 'bg-green-500' : 'bg-gray-300'}`}></span>
+                                  {member.assignedStudents || 0} Students
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      
+                      <div className="mt-4 text-sm text-gray-500">
+                        Showing {faculty.length} faculty members from database
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
               
-              {/* Settings Tab */}
+              {/* Settings Tab (now Projects) */}
               {activeTab === 'settings' && (
                 <div>
-                  <h2 className="text-xl font-semibold text-gray-800 mb-6">Project Management</h2>
+                  <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-xl font-semibold text-gray-800">Project Management</h2>
+                    <button 
+                      className="btn btn-secondary"
+                      onClick={fetchProjects}
+                      disabled={isLoadingProjects}
+                    >
+                      {isLoadingProjects ? 'Refreshing...' : 'Refresh List'}
+                    </button>
+                  </div>
                   
-                  <div className="space-y-6">
-                    <div className="bg-white p-6 rounded-lg border shadow-sm">
-                      <h3 className="text-lg font-medium text-gray-800 mb-4">General Settings</h3>
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            System Name
-                          </label>
-                          <input type="text" className="form-input" value="Disserto" />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Admin Email
-                          </label>
-                          <input type="email" className="form-input" value="admin@disserto.edu" />
-                        </div>
-                      </div>
+                  {isLoadingProjects ? (
+                    <div className="flex justify-center items-center h-64">
+                      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
+                      <p className="ml-3 text-indigo-500">Loading projects from database...</p>
                     </div>
-                    
-                    <div className="flex justify-end space-x-4">
-                      <button className="btn btn-primary">
-                        Save Changes
+                  ) : error ? (
+                    <div className="bg-red-50 p-6 rounded-md">
+                      <p className="text-red-800">{error}</p>
+                      <button 
+                        className="mt-4 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700" 
+                        onClick={fetchProjects}
+                      >
+                        Try Again
                       </button>
                     </div>
-                  </div>
+                  ) : projects.length === 0 ? (
+                    <div className="bg-gray-50 p-6 text-center rounded-md">
+                      <p className="text-gray-500">No projects found in the database.</p>
+                    </div>
+                  ) : (
+                    <div className="table-container overflow-x-auto">
+                      <table className="w-full border-collapse">
+                        <thead>
+                          <tr>
+                            <th className="text-left py-3 px-6 border-b border-gray-200">Title</th>
+                            <th className="text-left py-3 px-6 border-b border-gray-200">Student</th>
+                            <th className="text-left py-3 px-6 border-b border-gray-200">HOD Assigned</th>
+                            <th className="text-left py-3 px-6 border-b border-gray-200">Guide</th>
+                            <th className="text-left py-3 px-6 border-b border-gray-200">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {projects.map(project => (
+                            <tr key={project.id} className="hover:bg-gray-50">
+                              <td className="py-3 px-6 border-b border-gray-200 font-medium">{project.title}</td>
+                              <td className="py-3 px-6 border-b border-gray-200">
+                                <div className="flex items-center">
+                                  <span className={`w-2 h-2 mr-2 rounded-full ${project.studentId ? 'bg-green-500' : 'bg-gray-300'}`}></span>
+                                  {project.studentName}
+                                </div>
+                                {project.studentId && (
+                                  <div className="text-xs text-gray-500 mt-1">ID: {project.studentId}</div>
+                                )}
+                              </td>
+                              <td className="py-3 px-6 border-b border-gray-200">{project.hodAssigned}</td>
+                              <td className="py-3 px-6 border-b border-gray-200">
+                                <div className="flex items-center">
+                                  <span className={`w-2 h-2 mr-2 rounded-full ${project.guide !== 'Not Assigned' ? 'bg-green-500' : 'bg-gray-300'}`}></span>
+                                  {project.guide}
+                                </div>
+                              </td>
+                              <td className="py-3 px-6 border-b border-gray-200">
+                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
+                                  ${project.status === 'Approved' ? 'bg-green-100 text-green-800' : 
+                                    project.status === 'Rejected' ? 'bg-red-100 text-red-800' : 
+                                    project.status === 'Completed' ? 'bg-blue-100 text-blue-800' :
+                                    'bg-yellow-100 text-yellow-800'}`}>
+                                  {project.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      
+                      <div className="mt-4 text-sm text-gray-500">
+                        Showing {projects.length} projects from database
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </>

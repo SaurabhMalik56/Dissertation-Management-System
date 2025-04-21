@@ -160,6 +160,132 @@ const getAllHods = async (token) => {
   }
 };
 
+// Get all faculty members directly from database
+const getAllFaculty = async (token) => {
+  try {
+    const config = {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    };
+    
+    console.log('Fetching faculty members from database...');
+    
+    // Get all users with role 'faculty'
+    const response = await axios.get(`${API_URL}/users?role=faculty`, config);
+    const facultyMembers = response.data || [];
+    
+    // Get all students to count assigned ones for each faculty
+    const studentsResponse = await axios.get(`${API_URL}/users/students`, config);
+    const students = studentsResponse.data || [];
+    
+    // Count assigned students for each faculty
+    const facultyWithStudents = facultyMembers.map(faculty => {
+      // Count students that have this faculty as their assigned guide
+      const assignedStudents = students.filter(student => 
+        student.assignedGuide && student.assignedGuide === faculty._id
+      ).length;
+      
+      return {
+        id: faculty._id,
+        name: faculty.fullName,
+        email: faculty.email,
+        department: faculty.department || 'Not Assigned',
+        assignedStudents: assignedStudents
+      };
+    });
+    
+    console.log(`Successfully fetched ${facultyWithStudents.length} faculty members`);
+    
+    return { 
+      success: true, 
+      data: facultyWithStudents
+    };
+  } catch (error) {
+    console.error('Error fetching faculty members:', error.message);
+    throw error;
+  }
+};
+
+// Get all projects directly from database
+const getAllProjects = async (token) => {
+  try {
+    const config = {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    };
+    
+    console.log('Fetching projects from database...');
+    
+    // Get all projects
+    const projectsResponse = await axios.get(`${API_URL}/projects`, config);
+    const projects = projectsResponse.data || [];
+    
+    // Get all users to map IDs to names
+    const usersResponse = await axios.get(`${API_URL}/users`, config);
+    const users = usersResponse.data || [];
+    
+    // Create maps for quick lookups
+    const userMap = {};
+    users.forEach(user => {
+      userMap[user._id] = {
+        name: user.fullName,
+        role: user.role,
+        department: user.department
+      };
+    });
+    
+    // Map project data with related user information
+    const projectsWithDetails = projects.map(project => {
+      // Get student information - using the student field directly if it exists
+      const studentName = project.student && typeof project.student !== 'string' && project.student._id 
+        ? project.student.name || (userMap[project.student._id]?.name || 'Unknown Student')
+        : project.studentId && userMap[project.studentId]
+          ? userMap[project.studentId].name
+          : 'Unknown Student';
+      
+      const studentId = project.student && typeof project.student !== 'string' && project.student._id 
+        ? project.student._id 
+        : project.studentId || null;
+        
+      // Get guide information - using the guide field directly if it exists
+      const guideName = project.guide && typeof project.guide !== 'string' && project.guide._id
+        ? project.guide.name || (userMap[project.guide._id]?.name || 'Not Assigned')
+        : project.guideId && userMap[project.guideId]
+          ? userMap[project.guideId].name
+          : 'Not Assigned';
+        
+      // Get HOD information based on department
+      const departmentHod = users.find(user => 
+        user.role === 'hod' && user.department === project.department
+      );
+      const hodName = departmentHod ? departmentHod.fullName : 'Not Assigned';
+      
+      return {
+        id: project._id,
+        title: project.title,
+        studentId: studentId,
+        studentName: studentName,
+        hodAssigned: hodName,
+        guide: guideName,
+        status: project.status || 'Pending',
+        department: project.department
+      };
+    });
+    
+    console.log(`Successfully fetched ${projectsWithDetails.length} projects with details`);
+    
+    return { 
+      success: true, 
+      data: projectsWithDetails
+    };
+  } catch (error) {
+    console.error('Error fetching projects:', error.message);
+    throw error;
+  }
+};
+
 // Get system stats
 const getSystemStats = async (token) => {
   try {
@@ -241,6 +367,8 @@ const adminService = {
   updateStudent,
   deleteStudent,
   getAllHods,
+  getAllFaculty,
+  getAllProjects,
   getSystemStats
 };
 
