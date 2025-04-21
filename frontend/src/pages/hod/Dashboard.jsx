@@ -47,6 +47,7 @@ const Dashboard = () => {
   const [guidesFilter, setGuidesFilter] = useState('all'); // 'all', 'active', 'available'
   const [studentSearch, setStudentSearch] = useState('');
   const [filteredGuides, setFilteredGuides] = useState([]);
+  const [viewProjectModalOpen, setViewProjectModalOpen] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -55,8 +56,8 @@ const Dashboard = () => {
       try {
         console.log('Loading fresh dashboard data...');
         if (projects.length === 0 || pendingProjects.length === 0) {
-          await fetchDashboardData('all');
-          console.log('Dashboard data loaded successfully');
+        await fetchDashboardData('all');
+        console.log('Dashboard data loaded successfully');
         }
       } catch (error) {
         console.error('Error loading dashboard data:', error);
@@ -474,9 +475,9 @@ const Dashboard = () => {
                                   {project.student || "Unknown Student"}
                                 </div>
                                 {project.studentEmail && (
-                                  <div className="text-sm text-gray-500">
+                                <div className="text-sm text-gray-500">
                                     {project.studentEmail}
-                                  </div>
+                                </div>
                                 )}
                               </div>
                             </div>
@@ -563,7 +564,7 @@ const Dashboard = () => {
                                 {project.studentEmail && (
                                   <div className="text-sm text-gray-500">
                                     {project.studentEmail}
-                                  </div>
+                                </div>
                                 )}
                               </div>
                             </div>
@@ -578,9 +579,9 @@ const Dashboard = () => {
                                   {project.faculty}
                                 </div>
                                 {project.facultyEmail && (
-                                  <div className="text-sm text-gray-500">
-                                    {project.facultyEmail}
-                                  </div>
+                                <div className="text-sm text-gray-500">
+                                  {project.facultyEmail}
+                                </div>
                                 )}
                               </div>
                             ) : (
@@ -603,16 +604,16 @@ const Dashboard = () => {
                               </button>
                             ) : (
                               <div className="flex justify-center">
-                                <button
-                                  onClick={() => {
-                                    setSelectedProject(project);
-                                    setAssigningGuide(true);
+                              <button
+                                onClick={() => {
+                                  setSelectedProject(project);
+                                  setAssigningGuide(true);
                                     setSelectedGuideId(project.facultyId);
-                                  }}
+                                }}
                                   className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 transition-colors duration-150"
-                                >
-                                  Reassign Guide
-                                </button>
+                              >
+                                Reassign Guide
+                              </button>
                               </div>
                             )}
                           </td>
@@ -683,36 +684,36 @@ const Dashboard = () => {
                         {departmentFaculty.map((faculty) => {
                           const isCurrentGuide = faculty.id === selectedProject.facultyId;
                           return (
-                            <button
-                              key={faculty.id}
+                      <button
+                        key={faculty.id}
                               onClick={() => handleGuideAssignment(selectedProject._id, faculty.id)}
                               disabled={isCurrentGuide}
                               className={`flex items-center justify-between p-3 border rounded-lg transition-colors duration-150
                                 ${isCurrentGuide 
                                   ? 'border-indigo-300 bg-indigo-50 cursor-not-allowed' 
                                   : 'border-gray-300 hover:bg-indigo-50'}`}
-                            >
-                              <div className="flex items-center">
+                      >
+                        <div className="flex items-center">
                                 <div className={`rounded-full w-10 h-10 flex items-center justify-center mr-3 
                                   ${isCurrentGuide 
                                     ? 'bg-indigo-200 text-indigo-700' 
                                     : 'bg-indigo-100 text-indigo-500'}`}>
-                                  {faculty.name?.charAt(0) || 'F'}
-                                </div>
-                                <div className="text-left">
+                            {faculty.name?.charAt(0) || 'F'}
+                          </div>
+                          <div className="text-left">
                                   <p className={`text-sm font-medium ${isCurrentGuide ? 'text-indigo-700' : 'text-gray-900'}`}>
                                     {faculty.name}
                                   </p>
-                                  <p className="text-xs text-gray-500">{faculty.email}</p>
+                            <p className="text-xs text-gray-500">{faculty.email}</p>
                                   {faculty.branch && (
                                     <p className="text-xs text-gray-400">Branch: {faculty.branch}</p>
                                   )}
-                                </div>
-                              </div>
-                            </button>
+                          </div>
+                        </div>
+                      </button>
                           );
                         })}
-                      </div>
+                  </div>
                     </div>
                   ) : (
                     <div className="text-center py-6 text-gray-500">
@@ -854,7 +855,7 @@ const Dashboard = () => {
                               </div>
                               
                               {student.projects && student.projects.length > 0 && (
-                                <div className="mt-2">
+                  <div className="mt-2">
                                   <h5 className="text-xs font-medium text-gray-500 mb-1">Project Details:</h5>
                                   <ul className="space-y-1">
                                     {student.projects.map(project => (
@@ -894,8 +895,215 @@ const Dashboard = () => {
           </div>
         </div>
       )}
+
+      {/* Project Details Modal */}
+      {viewProjectModalOpen && selectedProject && (
+        <div className="fixed z-10 inset-0 overflow-y-auto">
+          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+              <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+            </div>
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            <div className="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full sm:p-6">
+              <div>
+                <div className="mt-3 text-center sm:mt-5">
+                  <h3 className="text-lg leading-6 font-medium text-gray-900 flex justify-between items-center">
+                    <span>Project Details</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setViewProjectModalOpen(false);
+                        setSelectedProject(null);
+                      }}
+                      className="inline-flex items-center justify-center p-1 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500 transition-colors duration-150"
+                    >
+                      <span className="sr-only">Close</span>
+                      <XMarkIcon className="h-6 w-6" aria-hidden="true" />
+                    </button>
+                  </h3>
+                </div>
+                
+                <div className="mt-4">
+                  <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                    <h4 className="text-md font-medium text-gray-900 mb-2">{selectedProject.title}</h4>
+                    <div className="flex justify-between items-center">
+                      <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        selectedProject.status === 'approved' 
+                          ? 'bg-green-100 text-green-800' 
+                          : selectedProject.status === 'pending' 
+                            ? 'bg-yellow-100 text-yellow-800' 
+                            : selectedProject.status === 'rejected'
+                              ? 'bg-red-100 text-red-800'
+                              : selectedProject.status === 'completed'
+                                ? 'bg-blue-100 text-blue-800'
+                                : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {selectedProject.status?.charAt(0).toUpperCase() + selectedProject.status?.slice(1) || 'Unknown'}
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        Submitted: {new Date(selectedProject.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <h5 className="text-sm font-medium text-gray-500 mb-1">Student</h5>
+                      <p className="text-sm text-gray-900">
+                        {selectedProject.student?.fullName || selectedProject.student?.name || selectedProject.student || "Unknown Student"}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {selectedProject.studentEmail}
+                      </p>
+                    </div>
+                    
+                    <div>
+                      <h5 className="text-sm font-medium text-gray-500 mb-1">Department</h5>
+                      <p className="text-sm text-gray-900">
+                        {selectedProject.department || 'Not specified'}
+                    </p>
+                  </div>
+                </div>
+                  
+                  <div className="mb-4">
+                    <h5 className="text-sm font-medium text-gray-500 mb-1">Description</h5>
+                    <p className="text-sm text-gray-900 border rounded-md p-3 bg-gray-50">
+                      {selectedProject.description || 'No description provided.'}
+                    </p>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <h5 className="text-sm font-medium text-gray-500 mb-1">Technologies</h5>
+                      <div className="flex flex-wrap">
+                        {selectedProject.technologies ? (
+                          (typeof selectedProject.technologies === 'string' ? 
+                            selectedProject.technologies.split(',') : 
+                            selectedProject.technologies
+                          ).map((tech, index) => (
+                            <span key={index} className="px-2 py-1 bg-blue-50 text-blue-700 rounded-md text-xs m-1">
+                              {tech.trim()}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-sm text-gray-500">No technologies specified.</span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <h5 className="text-sm font-medium text-gray-500 mb-1">Assigned Guide</h5>
+                      {selectedProject.facultyId ? (
+                        <div>
+                          <p className="text-sm text-gray-900">{selectedProject.faculty}</p>
+                          <p className="text-xs text-gray-500">{selectedProject.facultyEmail}</p>
+                        </div>
+                      ) : (
+                        <div className="flex items-center">
+                          <span className="text-sm text-gray-500 mr-2">No guide assigned</span>
+                          <button
+                            onClick={() => {
+                              setViewProjectModalOpen(false);
+                              setAssigningGuide(true);
+                              setSelectedGuideId('');
+                            }}
+                            className="text-xs bg-indigo-50 text-indigo-600 py-1 px-2 rounded hover:bg-indigo-100"
+                          >
+                            Assign Guide
+                          </button>
+                        </div>
+                      )}
+                  </div>
+                  </div>
+                  
+                  {selectedProject.status === 'approved' && (
+                    <div className="border-t border-gray-200 pt-4 mt-4">
+                      <h5 className="text-sm font-medium text-gray-900 mb-2">Progress Updates</h5>
+                      {selectedProject.progressUpdates && selectedProject.progressUpdates.length > 0 ? (
+                        <div className="space-y-2">
+                          {selectedProject.progressUpdates.map((update, index) => (
+                            <div key={index} className="bg-gray-50 p-3 rounded-md">
+                              <div className="flex justify-between">
+                                <h6 className="text-sm font-medium">{update.title}</h6>
+                                <span className="text-xs text-gray-500">
+                                  {new Date(update.date).toLocaleDateString()}
+                                </span>
+                              </div>
+                              <p className="text-xs text-gray-700 mt-1">{update.description}</p>
+                              <div className="w-full bg-gray-200 rounded-full h-2.5 mt-2">
+                                <div 
+                                  className={`h-2.5 rounded-full ${
+                                    update.progress < 30 ? 'bg-red-500' : 
+                                    update.progress < 70 ? 'bg-yellow-500' : 'bg-green-500'
+                                  }`} 
+                                  style={{ width: `${update.progress}%` }}
+                                ></div>
+                              </div>
+                              <span className="text-xs font-medium text-gray-700 flex justify-end mt-1">
+                                {update.progress}% complete
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500">No progress updates yet.</p>
+                      )}
+                    </div>
+                  )}
+                  
+                  {selectedProject.status === 'rejected' && selectedProject.rejectionReason && (
+                    <div className="border-t border-gray-200 pt-4 mt-4">
+                      <h5 className="text-sm font-medium text-red-500 mb-2">Rejection Reason</h5>
+                      <p className="text-sm text-gray-700 bg-red-50 p-3 rounded-md border border-red-100">
+                        {selectedProject.rejectionReason}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              <div className="mt-5 sm:mt-6 flex space-x-3">
+                {selectedProject.status === 'pending' && (
+                  <>
+                <button
+                  type="button"
+                      className="inline-flex justify-center w-full rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:text-sm transition-colors duration-150"
+                      onClick={() => {
+                        handleUpdateProjectStatus(selectedProject._id, 'approved');
+                        setViewProjectModalOpen(false);
+                      }}
+                    >
+                      Approve Project
+                </button>
+                <button
+                  type="button"
+                      className="inline-flex justify-center w-full rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:text-sm transition-colors duration-150"
+                      onClick={() => {
+                        setRejectModalOpen(true);
+                        setViewProjectModalOpen(false);
+                      }}
+                    >
+                      Reject Project
+                    </button>
+                  </>
+                )}
+                <button
+                  type="button"
+                  className="inline-flex justify-center w-full rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:text-sm transition-colors duration-150"
+                  onClick={() => {
+                    setViewProjectModalOpen(false);
+                    setSelectedProject(null);
+                  }}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
-export default Dashboard;
+export default Dashboard; 

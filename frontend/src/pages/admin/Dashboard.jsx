@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
+import { toast } from 'react-toastify';
 import axios from 'axios';
+import adminService from '../../services/adminService';
 
 const Dashboard = () => {
   const { user } = useSelector((state) => state.auth);
   const [activeTab, setActiveTab] = useState('users');
-  const [users, setUsers] = useState([]);
+  const [students, setStudents] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [stats, setStats] = useState({
     totalUsers: 0,
@@ -22,56 +24,91 @@ const Dashboard = () => {
     network: 25
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingStudents, setIsLoadingStudents] = useState(false);
+  const [isAddingStudent, setIsAddingStudent] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    // Simulate API call to fetch admin data
-    const fetchData = async () => {
-      try {
-        setIsLoading(true);
-        // In a real app, these would be actual API calls with the user's token
-        // const response = await axios.get('/api/admin/dashboard', {
-        //   headers: { Authorization: `Bearer ${user.token}` }
-        // });
-        
-        // For now, use mock data
-        setTimeout(() => {
-          setUsers([
-            { id: 1, name: 'John Doe', email: 'john.doe@example.com', role: 'student', department: 'Computer Science', status: 'active' },
-            { id: 2, name: 'Jane Smith', email: 'jane.smith@example.com', role: 'student', department: 'Information Technology', status: 'active' },
-            { id: 3, name: 'Dr. Smith', email: 'dr.smith@example.com', role: 'faculty', department: 'Computer Science', status: 'active' },
-            { id: 4, name: 'Dr. Johnson', email: 'dr.johnson@example.com', role: 'faculty', department: 'Information Technology', status: 'active' },
-            { id: 5, name: 'Prof. Williams', email: 'prof.williams@example.com', role: 'hod', department: 'Computer Science', status: 'active' },
-            { id: 6, name: 'Robert Brown', email: 'robert.brown@example.com', role: 'student', department: 'Electronics', status: 'inactive' }
-          ]);
-          
-          setDepartments([
-            { id: 1, name: 'Computer Science', hod: 'Prof. Williams', faculty: 12, students: 120, projects: 85 },
-            { id: 2, name: 'Information Technology', hod: 'Prof. Davis', faculty: 10, students: 105, projects: 78 },
-            { id: 3, name: 'Electronics', hod: 'Prof. Johnson', faculty: 8, students: 90, projects: 65 },
-            { id: 4, name: 'Mechanical', hod: 'Prof. Thompson', faculty: 15, students: 150, projects: 110 },
-            { id: 5, name: 'Civil', hod: 'Prof. Wilson', faculty: 14, students: 135, projects: 95 }
-          ]);
-          
-          setStats({
-            totalUsers: 505,
-            totalStudents: 450,
-            totalFaculty: 50,
-            totalHods: 5,
-            totalDepartments: 5,
-            totalProjects: 433
-          });
-          
-          setIsLoading(false);
-        }, 1000);
-      } catch (err) {
-        setError('Failed to fetch dashboard data');
-        setIsLoading(false);
-      }
-    };
-
-    fetchData();
+    if (user && user.token) {
+      fetchData();
+    }
   }, [user]);
+
+  // When tab changes, make sure data is loaded for that tab
+  useEffect(() => {
+    if (activeTab === 'users' && students.length === 0 && !isLoadingStudents) {
+      fetchStudents();
+    }
+  }, [activeTab]);
+
+  const fetchData = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      // Fetch initial data
+      await Promise.all([
+        fetchStudents(),
+        fetchSystemStats()
+      ]);
+      
+      setIsLoading(false);
+    } catch (err) {
+      setError('Failed to fetch dashboard data');
+      setIsLoading(false);
+      toast.error('Failed to load dashboard data. Please try again later.');
+    }
+  };
+
+  const fetchStudents = async () => {
+    if (!user || !user.token) return;
+    
+    try {
+      setIsLoadingStudents(true);
+      setError(null);
+      
+      const studentsResponse = await adminService.getAllStudents(user.token);
+      setStudents(studentsResponse.data);
+      
+    } catch (error) {
+      console.error('Error fetching students:', error);
+      setError('Failed to load student data. Please try again.');
+      toast.error('Unable to fetch students from database');
+    } finally {
+      setIsLoadingStudents(false);
+    }
+  };
+
+  const fetchSystemStats = async () => {
+    if (!user || !user.token) return;
+    
+    try {
+      const statsResponse = await adminService.getSystemStats(user.token);
+      setStats(statsResponse.data);
+    } catch (error) {
+      console.error('Error fetching system stats:', error);
+      toast.error('Failed to load system statistics');
+    }
+  };
+
+  const handleAddStudent = async () => {
+    // This would typically open a modal with a form
+    toast.info('Add student functionality requires a form implementation');
+  };
+
+  const handleDeleteStudent = async (studentId) => {
+    if (window.confirm('Are you sure you want to delete this student?')) {
+      try {
+        await adminService.deleteStudent(user.token, studentId);
+        toast.success('Student deleted successfully');
+        // Update local state to remove deleted student
+        setStudents(students.filter(student => student.id !== studentId));
+      } catch (error) {
+        console.error('Error deleting student:', error);
+        toast.error('Failed to delete student');
+      }
+    }
+  };
 
   const getRoleBadgeClass = (role) => {
     switch (role) {
@@ -90,6 +127,12 @@ const Dashboard = () => {
 
   const getStatusIndicatorClass = (status) => {
     return status === 'active' ? 'bg-green-500' : 'bg-red-500';
+  };
+
+  const getProgressColorClass = (progress) => {
+    if (progress < 30) return 'bg-red-500';
+    if (progress < 70) return 'bg-yellow-500';
+    return 'bg-green-500';
   };
 
   return (
@@ -219,7 +262,7 @@ const Dashboard = () => {
                   className={`tab ${activeTab === 'users' ? 'tab-active' : 'tab-inactive'}`}
                   onClick={() => setActiveTab('users')}
                 >
-                  Users
+                  Students
                 </button>
               </li>
               <li className="mr-2">
@@ -227,7 +270,7 @@ const Dashboard = () => {
                   className={`tab ${activeTab === 'departments' ? 'tab-active' : 'tab-inactive'}`}
                   onClick={() => setActiveTab('departments')}
                 >
-                  Departments
+                  Hods
                 </button>
               </li>
               <li className="mr-2">
@@ -235,7 +278,7 @@ const Dashboard = () => {
                   className={`tab ${activeTab === 'reports' ? 'tab-active' : 'tab-inactive'}`}
                   onClick={() => setActiveTab('reports')}
                 >
-                  Reports
+                  Faculty
                 </button>
               </li>
               <li className="mr-2">
@@ -243,7 +286,7 @@ const Dashboard = () => {
                   className={`tab ${activeTab === 'settings' ? 'tab-active' : 'tab-inactive'}`}
                   onClick={() => setActiveTab('settings')}
                 >
-                  Settings
+                  Projects
                 </button>
               </li>
             </ul>
@@ -261,88 +304,86 @@ const Dashboard = () => {
             </div>
           ) : (
             <>
-              {/* Users Tab */}
+              {/* Users Tab (now Students) */}
               {activeTab === 'users' && (
                 <div>
                   <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-6">
-                    <h2 className="text-xl font-semibold text-gray-800">User Management</h2>
-                    <div className="flex flex-col sm:flex-row gap-3">
-                      <div className="flex">
-                        <input 
-                          type="text" 
-                          placeholder="Search users..." 
-                          className="form-input rounded-r-none"
-                        />
-                        <button className="bg-gray-100 border border-l-0 border-gray-300 px-3 rounded-r-md">
-                          <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-                          </svg>
-                        </button>
-                      </div>
-                      <select className="form-input">
-                        <option value="">All Roles</option>
-                        <option value="student">Students</option>
-                        <option value="faculty">Faculty</option>
-                        <option value="hod">HODs</option>
-                        <option value="admin">Admins</option>
-                      </select>
-                      <button className="btn btn-primary">Add User</button>
-                    </div>
-                  </div>
-                  
-                  <div className="table-container">
-                    <table className="table">
-                      <thead>
-                        <tr>
-                          <th>Name</th>
-                          <th>Email</th>
-                          <th>Role</th>
-                          <th>Department</th>
-                          <th>Status</th>
-                          <th>Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {users.map(user => (
-                          <tr key={user.id}>
-                            <td className="font-medium text-gray-800">{user.name}</td>
-                            <td>{user.email}</td>
-                            <td>
-                              <span className={`badge ${getRoleBadgeClass(user.role)}`}>
-                                {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
-                              </span>
-                            </td>
-                            <td>{user.department}</td>
-                            <td>
-                              <div className="flex items-center">
-                                <div className={`w-2.5 h-2.5 rounded-full mr-2 ${getStatusIndicatorClass(user.status)}`}></div>
-                                <span>{user.status.charAt(0).toUpperCase() + user.status.slice(1)}</span>
-                              </div>
-                            </td>
-                            <td>
-                              <button className="text-indigo-600 hover:text-indigo-900 mr-2">
-                                Edit
-                              </button>
-                              <button className="text-red-600 hover:text-red-900">
-                                Delete
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  
-                  {/* Pagination */}
-                  <div className="flex items-center justify-between mt-6">
-                    <div className="text-sm text-gray-500">
-                      Showing <span className="font-medium">1</span> to <span className="font-medium">6</span> of <span className="font-medium">{stats.totalUsers}</span> users
-                    </div>
+                    <h2 className="text-xl font-semibold text-gray-800">Student Management</h2>
                     <div className="flex space-x-2">
-                      <button className="btn btn-secondary">Previous</button>
-                      <button className="btn btn-primary">Next</button>
+                      <button
+                        className="btn btn-secondary"
+                        onClick={fetchStudents}
+                        disabled={isLoadingStudents}
+                      >
+                        {isLoadingStudents ? 'Refreshing...' : 'Refresh List'}
+                      </button>
+                      <button 
+                        className="btn btn-primary"
+                        onClick={handleAddStudent}
+                        disabled={isAddingStudent}
+                      >
+                        {isAddingStudent ? 'Adding...' : 'Add Student'}
+                      </button>
                     </div>
                   </div>
+                  
+                  {isLoadingStudents ? (
+                    <div className="flex justify-center items-center h-64">
+                      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
+                      <p className="ml-3 text-indigo-500">Loading students from database...</p>
+                    </div>
+                  ) : error ? (
+                    <div className="bg-red-50 p-6 rounded-md">
+                      <p className="text-red-800">{error}</p>
+                      <button 
+                        className="mt-4 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700" 
+                        onClick={fetchStudents}
+                      >
+                        Try Again
+                      </button>
+                    </div>
+                  ) : students.length === 0 ? (
+                    <div className="bg-gray-50 p-6 text-center rounded-md">
+                      <p className="text-gray-500">No students found in the database.</p>
+                    </div>
+                  ) : (
+                    <div className="table-container">
+                      <table className="w-full border-collapse">
+                        <thead>
+                          <tr>
+                            <th className="text-left py-3 px-6 border-b border-gray-200 w-1/3">Full Name</th>
+                            <th className="text-left py-3 px-6 border-b border-gray-200 w-1/3">Email Address</th>
+                            <th className="text-left py-3 px-6 border-b border-gray-200 w-1/3">Assigned Guide</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {students.map(student => (
+                            <tr key={student.id} className="hover:bg-gray-50">
+                              <td className="py-3 px-6 border-b border-gray-200">{student.name}</td>
+                              <td className="py-3 px-6 border-b border-gray-200">{student.email}</td>
+                              <td className="py-3 px-6 border-b border-gray-200">
+                                {student.guideName ? (
+                                  <div className="flex items-center">
+                                    <span className="w-2 h-2 mr-2 bg-green-500 rounded-full"></span>
+                                    <span>{student.guideName}</span>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center text-gray-500">
+                                    <span className="w-2 h-2 mr-2 bg-gray-300 rounded-full"></span>
+                                    <span>Not Assigned</span>
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      
+                      <div className="mt-4 text-sm text-gray-500">
+                        Showing {students.length} students from database
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
               
@@ -350,8 +391,8 @@ const Dashboard = () => {
               {activeTab === 'departments' && (
                 <div>
                   <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-xl font-semibold text-gray-800">Department Management</h2>
-                    <button className="btn btn-primary">Add Department</button>
+                    <h2 className="text-xl font-semibold text-gray-800">HOD Management</h2>
+                    <button className="btn btn-primary">Add HOD</button>
                   </div>
                   
                   <div className="table-container">
@@ -362,7 +403,6 @@ const Dashboard = () => {
                           <th>HOD</th>
                           <th>Faculty</th>
                           <th>Students</th>
-                          <th>Projects</th>
                           <th>Actions</th>
                         </tr>
                       </thead>
@@ -373,12 +413,8 @@ const Dashboard = () => {
                             <td>{dept.hod}</td>
                             <td>{dept.faculty}</td>
                             <td>{dept.students}</td>
-                            <td>{dept.projects}</td>
                             <td>
                               <button className="text-indigo-600 hover:text-indigo-900 mr-2">
-                                View
-                              </button>
-                              <button className="text-green-600 hover:text-green-900 mr-2">
                                 Edit
                               </button>
                               <button className="text-red-600 hover:text-red-900">
@@ -396,43 +432,30 @@ const Dashboard = () => {
               {/* Reports Tab */}
               {activeTab === 'reports' && (
                 <div>
-                  <h2 className="text-xl font-semibold text-gray-800 mb-6">System Reports</h2>
+                  <h2 className="text-xl font-semibold text-gray-800 mb-6">Faculty Management</h2>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="card">
                       <div className="card-header bg-gray-50">
-                        <h3 className="text-lg font-medium text-gray-700">User Distribution</h3>
+                        <h3 className="text-lg font-medium text-gray-700">User Summary</h3>
                       </div>
                       <div className="card-body">
-                        <div className="flex items-center justify-center h-64">
-                          <div className="relative w-48 h-48 rounded-full">
-                            {/* This is a placeholder for a pie chart - in a real app you'd use a chart library */}
-                            <div className="absolute inset-0 border-8 border-blue-500 rounded-full" style={{ clipPath: 'polygon(50% 50%, 50% 0%, 100% 0%, 100% 100%, 50% 100%)' }}></div>
-                            <div className="absolute inset-0 border-8 border-green-500 rounded-full" style={{ clipPath: 'polygon(50% 50%, 50% 0%, 0% 0%, 0% 50%)' }}></div>
-                            <div className="absolute inset-0 border-8 border-yellow-500 rounded-full" style={{ clipPath: 'polygon(50% 50%, 0% 50%, 0% 100%, 50% 100%)' }}></div>
-                            <div className="absolute inset-0 flex items-center justify-center">
-                              <div className="w-32 h-32 bg-white rounded-full flex items-center justify-center">
-                                <p className="text-lg font-semibold text-gray-700">User Roles</p>
-                              </div>
-                            </div>
+                        <div className="space-y-4 mt-4">
+                          <div className="flex justify-between">
+                            <span>Total Students:</span>
+                            <span className="font-medium">{stats.totalStudents}</span>
                           </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2 mt-4">
-                          <div className="flex items-center">
-                            <div className="w-3 h-3 bg-blue-500 rounded-full mr-2"></div>
-                            <span className="text-sm">Students ({Math.round(stats.totalStudents / stats.totalUsers * 100)}%)</span>
+                          <div className="flex justify-between">
+                            <span>Total Faculty:</span>
+                            <span className="font-medium">{stats.totalFaculty}</span>
                           </div>
-                          <div className="flex items-center">
-                            <div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
-                            <span className="text-sm">Faculty ({Math.round(stats.totalFaculty / stats.totalUsers * 100)}%)</span>
+                          <div className="flex justify-between">
+                            <span>Total HODs:</span>
+                            <span className="font-medium">{stats.totalHods}</span>
                           </div>
-                          <div className="flex items-center">
-                            <div className="w-3 h-3 bg-yellow-500 rounded-full mr-2"></div>
-                            <span className="text-sm">HODs ({Math.round(stats.totalHods / stats.totalUsers * 100)}%)</span>
-                          </div>
-                          <div className="flex items-center">
-                            <div className="w-3 h-3 bg-red-500 rounded-full mr-2"></div>
-                            <span className="text-sm">Admins (1%)</span>
+                          <div className="flex justify-between">
+                            <span>Total Users:</span>
+                            <span className="font-medium">{stats.totalUsers}</span>
                           </div>
                         </div>
                       </div>
@@ -450,21 +473,13 @@ const Dashboard = () => {
                                 <span className="text-gray-600">{dept.name}</span>
                                 <span className="font-medium">{dept.students} students</span>
                               </div>
-                              <div className="w-full bg-gray-200 rounded-full h-2">
-                                <div className="bg-indigo-600 h-2 rounded-full" style={{ width: `${(dept.students / 150) * 100}%` }}></div>
-                              </div>
                             </div>
                           ))}
                         </div>
                         <div className="mt-6 pt-6 border-t">
-                          <div className="grid grid-cols-2 gap-4">
-                            <button className="btn btn-primary">
-                              User Report
-                            </button>
-                            <button className="btn btn-secondary">
-                              Project Report
-                            </button>
-                          </div>
+                          <button className="btn btn-primary w-full">
+                            Download Reports
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -475,7 +490,7 @@ const Dashboard = () => {
               {/* Settings Tab */}
               {activeTab === 'settings' && (
                 <div>
-                  <h2 className="text-xl font-semibold text-gray-800 mb-6">System Settings</h2>
+                  <h2 className="text-xl font-semibold text-gray-800 mb-6">Project Management</h2>
                   
                   <div className="space-y-6">
                     <div className="bg-white p-6 rounded-lg border shadow-sm">
@@ -493,49 +508,10 @@ const Dashboard = () => {
                           </label>
                           <input type="email" className="form-input" value="admin@disserto.edu" />
                         </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Timezone
-                          </label>
-                          <select className="form-input">
-                            <option>UTC (Coordinated Universal Time)</option>
-                            <option>EST (Eastern Standard Time)</option>
-                            <option>CST (Central Standard Time)</option>
-                            <option>PST (Pacific Standard Time)</option>
-                            <option>IST (Indian Standard Time)</option>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="bg-white p-6 rounded-lg border shadow-sm">
-                      <h3 className="text-lg font-medium text-gray-800 mb-4">Email Configuration</h3>
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            SMTP Server
-                          </label>
-                          <input type="text" className="form-input" value="smtp.disserto.edu" />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            SMTP Port
-                          </label>
-                          <input type="text" className="form-input" value="587" />
-                        </div>
-                        <div className="flex items-center">
-                          <input id="enable-ssl" type="checkbox" className="h-4 w-4 text-indigo-600 border-gray-300 rounded" checked />
-                          <label htmlFor="enable-ssl" className="ml-2 block text-sm text-gray-700">
-                            Enable SSL
-                          </label>
-                        </div>
                       </div>
                     </div>
                     
                     <div className="flex justify-end space-x-4">
-                      <button className="btn btn-secondary">
-                        Reset to Default
-                      </button>
                       <button className="btn btn-primary">
                         Save Changes
                       </button>
