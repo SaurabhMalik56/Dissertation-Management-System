@@ -1,8 +1,62 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, Component, createRef } from 'react';
 import { useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
 import axios from 'axios';
 import adminService from '../../services/adminService';
+
+// Create a class component for the SearchBar to have more direct control over input focus
+class SearchBarComponent extends Component {
+  constructor(props) {
+    super(props);
+    this.inputRef = createRef();
+  }
+
+  componentDidUpdate(prevProps) {
+    // Force focus the input field regardless of state changes
+    if (this.inputRef.current) {
+      this.inputRef.current.focus();
+    }
+  }
+
+  render() {
+    const { placeholder, value, onChange } = this.props;
+    
+    return (
+      <div className="relative mb-4">
+        <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+          <svg className="w-4 h-4 text-gray-500" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20">
+            <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="m19 19-4-4m0-7A7 7 0 1 1 1 8a7 7 0 0 1 14 0Z"/>
+          </svg>
+        </div>
+        <input 
+          ref={this.inputRef}
+          type="text" 
+          className="block w-full p-2.5 pl-10 text-sm text-gray-900 border border-gray-300 rounded-lg bg-gray-50 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none transition-all duration-200 hover:border-indigo-300"
+          placeholder={placeholder}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          autoComplete="off"
+        />
+        {value && (
+          <button
+            className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-indigo-600"
+            onClick={() => {
+              onChange('');
+              if (this.inputRef.current) {
+                this.inputRef.current.focus();
+              }
+            }}
+            type="button"
+          >
+            <svg className="w-4 h-4" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
+      </div>
+    );
+  }
+}
 
 const Dashboard = () => {
   const { user } = useSelector((state) => state.auth);
@@ -12,6 +66,10 @@ const Dashboard = () => {
   const [faculty, setFaculty] = useState([]);
   const [projects, setProjects] = useState([]);
   const [departments, setDepartments] = useState([]);
+  const [studentSearch, setStudentSearch] = useState('');
+  const [hodSearch, setHodSearch] = useState('');
+  const [facultySearch, setFacultySearch] = useState('');
+  const [projectSearch, setProjectSearch] = useState('');
   const [stats, setStats] = useState({
     totalUsers: 0,
     totalStudents: 0,
@@ -205,6 +263,35 @@ const Dashboard = () => {
     return 'bg-green-500';
   };
 
+  // Filter functions for search
+  const filteredStudents = students.filter(student => 
+    student.name.toLowerCase().includes(studentSearch.toLowerCase()) || 
+    student.email.toLowerCase().includes(studentSearch.toLowerCase()) ||
+    (student.guideName && student.guideName.toLowerCase().includes(studentSearch.toLowerCase()))
+  );
+
+  const filteredHods = hods.filter(hod => 
+    hod.name.toLowerCase().includes(hodSearch.toLowerCase()) || 
+    hod.email.toLowerCase().includes(hodSearch.toLowerCase()) ||
+    hod.department.toLowerCase().includes(hodSearch.toLowerCase())
+  );
+
+  const filteredFaculty = faculty.filter(member => 
+    member.name.toLowerCase().includes(facultySearch.toLowerCase()) || 
+    member.email.toLowerCase().includes(facultySearch.toLowerCase())
+  );
+
+  const filteredProjects = projects.filter(project => 
+    project.title.toLowerCase().includes(projectSearch.toLowerCase()) || 
+    project.studentName.toLowerCase().includes(projectSearch.toLowerCase()) ||
+    project.hodAssigned.toLowerCase().includes(projectSearch.toLowerCase()) ||
+    project.guide.toLowerCase().includes(projectSearch.toLowerCase()) ||
+    project.status.toLowerCase().includes(projectSearch.toLowerCase())
+  );
+
+  // Replace the functional SearchBar component with the class component
+  const SearchBar = SearchBarComponent;
+
   return (
     <div className="space-y-6">
       {/* Welcome section with stats */}
@@ -387,6 +474,13 @@ const Dashboard = () => {
                     </div>
                   </div>
                   
+                  {/* Search bar for students */}
+                  <SearchBar 
+                    placeholder="Search students by name, email or guide..." 
+                    value={studentSearch} 
+                    onChange={setStudentSearch} 
+                  />
+                  
                   {isLoadingStudents ? (
                     <div className="flex justify-center items-center h-64">
                       <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
@@ -402,9 +496,13 @@ const Dashboard = () => {
                         Try Again
                       </button>
                     </div>
-                  ) : students.length === 0 ? (
+                  ) : filteredStudents.length === 0 ? (
                     <div className="bg-gray-50 p-6 text-center rounded-md">
-                      <p className="text-gray-500">No students found in the database.</p>
+                      {studentSearch ? (
+                        <p className="text-gray-500">No students found matching "{studentSearch}".</p>
+                      ) : (
+                        <p className="text-gray-500">No students found in the database.</p>
+                      )}
                     </div>
                   ) : (
                     <div className="table-container">
@@ -417,7 +515,7 @@ const Dashboard = () => {
                           </tr>
                         </thead>
                         <tbody>
-                          {students.map(student => (
+                          {filteredStudents.map(student => (
                             <tr key={student.id} className="hover:bg-gray-50">
                               <td className="py-3 px-6 border-b border-gray-200">{student.name}</td>
                               <td className="py-3 px-6 border-b border-gray-200">{student.email}</td>
@@ -440,7 +538,8 @@ const Dashboard = () => {
                       </table>
                       
                       <div className="mt-4 text-sm text-gray-500">
-                        Showing {students.length} students from database
+                        Showing {filteredStudents.length} of {students.length} students
+                        {studentSearch && ` (filtered by "${studentSearch}")`}
                       </div>
                     </div>
                   )}
@@ -461,6 +560,13 @@ const Dashboard = () => {
                     </button>
                   </div>
                   
+                  {/* Search bar for HODs */}
+                  <SearchBar 
+                    placeholder="Search HODs by name, email or department..." 
+                    value={hodSearch} 
+                    onChange={setHodSearch} 
+                  />
+                  
                   {isLoadingHods ? (
                     <div className="flex justify-center items-center h-64">
                       <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
@@ -476,9 +582,13 @@ const Dashboard = () => {
                         Try Again
                       </button>
                     </div>
-                  ) : hods.length === 0 ? (
+                  ) : filteredHods.length === 0 ? (
                     <div className="bg-gray-50 p-6 text-center rounded-md">
-                      <p className="text-gray-500">No HODs found in the database.</p>
+                      {hodSearch ? (
+                        <p className="text-gray-500">No HODs found matching "{hodSearch}".</p>
+                      ) : (
+                        <p className="text-gray-500">No HODs found in the database.</p>
+                      )}
                     </div>
                   ) : (
                     <div className="table-container">
@@ -491,7 +601,7 @@ const Dashboard = () => {
                           </tr>
                         </thead>
                         <tbody>
-                          {hods.map(hod => (
+                          {filteredHods.map(hod => (
                             <tr key={hod.id} className="hover:bg-gray-50">
                               <td className="py-3 px-6 border-b border-gray-200">{hod.name}</td>
                               <td className="py-3 px-6 border-b border-gray-200">{hod.email}</td>
@@ -502,7 +612,8 @@ const Dashboard = () => {
                       </table>
                       
                       <div className="mt-4 text-sm text-gray-500">
-                        Showing {hods.length} HODs from database
+                        Showing {filteredHods.length} of {hods.length} HODs
+                        {hodSearch && ` (filtered by "${hodSearch}")`}
                       </div>
                     </div>
                   )}
@@ -523,6 +634,13 @@ const Dashboard = () => {
                     </button>
                   </div>
                   
+                  {/* Search bar for faculty */}
+                  <SearchBar 
+                    placeholder="Search faculty by name or email..." 
+                    value={facultySearch} 
+                    onChange={setFacultySearch} 
+                  />
+                  
                   {isLoadingFaculty ? (
                     <div className="flex justify-center items-center h-64">
                       <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
@@ -538,9 +656,13 @@ const Dashboard = () => {
                         Try Again
                       </button>
                     </div>
-                  ) : faculty.length === 0 ? (
+                  ) : filteredFaculty.length === 0 ? (
                     <div className="bg-gray-50 p-6 text-center rounded-md">
-                      <p className="text-gray-500">No faculty members found in the database.</p>
+                      {facultySearch ? (
+                        <p className="text-gray-500">No faculty members found matching "{facultySearch}".</p>
+                      ) : (
+                        <p className="text-gray-500">No faculty members found in the database.</p>
+                      )}
                     </div>
                   ) : (
                     <div className="table-container">
@@ -553,7 +675,7 @@ const Dashboard = () => {
                           </tr>
                         </thead>
                         <tbody>
-                          {faculty.map((member, index) => (
+                          {filteredFaculty.map((member, index) => (
                             <tr 
                               key={member.id} 
                               className="hover:bg-gray-50 animate-fade-in" 
@@ -573,7 +695,8 @@ const Dashboard = () => {
                       </table>
                       
                       <div className="mt-4 text-sm text-gray-500">
-                        Showing {faculty.length} faculty members from database
+                        Showing {filteredFaculty.length} of {faculty.length} faculty members
+                        {facultySearch && ` (filtered by "${facultySearch}")`}
                       </div>
                     </div>
                   )}
@@ -594,6 +717,13 @@ const Dashboard = () => {
                     </button>
                   </div>
                   
+                  {/* Search bar for projects */}
+                  <SearchBar 
+                    placeholder="Search projects by title, student, guide or status..." 
+                    value={projectSearch} 
+                    onChange={setProjectSearch} 
+                  />
+                  
                   {isLoadingProjects ? (
                     <div className="flex flex-col justify-center items-center h-64">
                       <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-purple-500"></div>
@@ -610,12 +740,16 @@ const Dashboard = () => {
                         Try Again
                       </button>
                     </div>
-                  ) : projects.length === 0 ? (
+                  ) : filteredProjects.length === 0 ? (
                     <div className="flex flex-col justify-center items-center h-64 bg-gray-50 p-6 rounded-md m-4">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                       </svg>
-                      <p className="text-gray-500 mt-4 text-center">No projects found in the database.</p>
+                      {projectSearch ? (
+                        <p className="text-gray-500 mt-4 text-center">No projects found matching "{projectSearch}".</p>
+                      ) : (
+                        <p className="text-gray-500 mt-4 text-center">No projects found in the database.</p>
+                      )}
                       <button onClick={fetchProjects} className="mt-4 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors duration-200 flex items-center">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -636,7 +770,7 @@ const Dashboard = () => {
                           </tr>
                         </thead>
                         <tbody>
-                          {projects.map((project, index) => (
+                          {filteredProjects.map((project, index) => (
                             <tr 
                               key={project.id} 
                               className="table-row-hover animate-fade-in" 
@@ -675,7 +809,8 @@ const Dashboard = () => {
                       </table>
                       
                       <div className="mt-4 text-sm text-gray-500">
-                        Showing {projects.length} projects from database
+                        Showing {filteredProjects.length} of {projects.length} projects
+                        {projectSearch && ` (filtered by "${projectSearch}")`}
                       </div>
                     </div>
                   )}
