@@ -639,9 +639,6 @@ const Dashboard = () => {
                                   <span className={`w-2 h-2 mr-2 rounded-full ${project.studentId ? 'bg-green-500' : 'bg-gray-300'}`}></span>
                                   {project.studentName}
                                 </div>
-                                {project.studentId && (
-                                  <div className="text-xs text-gray-500 mt-1">ID: {project.studentId}</div>
-                                )}
                               </td>
                               <td className="py-3 px-6 border-b border-gray-200">{project.hodAssigned}</td>
                               <td className="py-3 px-6 border-b border-gray-200">
