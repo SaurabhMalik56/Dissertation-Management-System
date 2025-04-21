@@ -220,10 +220,10 @@ const Dashboard = () => {
           </div>
           
           {/* Stats grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+          <div className="grid grid-cols-1 md:grid-cols-1 gap-4 mt-6">
             <div className="bg-white p-4 rounded-lg border shadow-sm">
               <h3 className="text-lg font-semibold text-gray-700 mb-4">User Statistics</h3>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 <div className="bg-indigo-50 p-3 rounded-lg">
                   <p className="text-xs text-indigo-700 uppercase font-semibold">Total Users</p>
                   <p className="text-2xl font-bold text-indigo-700">{stats.totalUsers}</p>
@@ -240,80 +240,9 @@ const Dashboard = () => {
                   <p className="text-xs text-yellow-700 uppercase font-semibold">HODs</p>
                   <p className="text-2xl font-bold text-yellow-700">{stats.totalHods}</p>
                 </div>
-              </div>
-            </div>
-            
-            <div className="bg-white p-4 rounded-lg border shadow-sm">
-              <h3 className="text-lg font-semibold text-gray-700 mb-4">Department Overview</h3>
-              <div className="flex flex-col h-full justify-between">
-                <div>
-                  <div className="flex justify-between mb-2">
-                    <p className="text-gray-600">Total Departments</p>
-                    <p className="font-semibold">{stats.totalDepartments}</p>
-                  </div>
-                  <div className="flex justify-between mb-2">
-                    <p className="text-gray-600">Total Projects</p>
-                    <p className="font-semibold">{stats.totalProjects}</p>
-                  </div>
-                </div>
-                <div className="mt-4">
-                  <button className="w-full btn btn-primary">
-                    Manage Departments
-                  </button>
-                </div>
-              </div>
-            </div>
-            
-            <div className="bg-white p-4 rounded-lg border shadow-sm">
-              <h3 className="text-lg font-semibold text-gray-700 mb-4">System Health</h3>
-              <div className="space-y-3">
-                <div>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-gray-600">CPU Usage</span>
-                    <span className="font-medium">{systemLoad.cpu}%</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className={`h-2 rounded-full ${systemLoad.cpu > 80 ? 'bg-red-500' : systemLoad.cpu > 60 ? 'bg-yellow-500' : 'bg-green-500'}`} 
-                      style={{ width: `${systemLoad.cpu}%` }}
-                    ></div>
-                  </div>
-                </div>
-                <div>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-gray-600">Memory</span>
-                    <span className="font-medium">{systemLoad.memory}%</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className={`h-2 rounded-full ${systemLoad.memory > 80 ? 'bg-red-500' : systemLoad.memory > 60 ? 'bg-yellow-500' : 'bg-green-500'}`} 
-                      style={{ width: `${systemLoad.memory}%` }}
-                    ></div>
-                  </div>
-                </div>
-                <div>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-gray-600">Storage</span>
-                    <span className="font-medium">{systemLoad.storage}%</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className={`h-2 rounded-full ${systemLoad.storage > 80 ? 'bg-red-500' : systemLoad.storage > 60 ? 'bg-yellow-500' : 'bg-green-500'}`} 
-                      style={{ width: `${systemLoad.storage}%` }}
-                    ></div>
-                  </div>
-                </div>
-                <div>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-gray-600">Network</span>
-                    <span className="font-medium">{systemLoad.network}%</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className={`h-2 rounded-full ${systemLoad.network > 80 ? 'bg-red-500' : systemLoad.network > 60 ? 'bg-yellow-500' : 'bg-green-500'}`} 
-                      style={{ width: `${systemLoad.network}%` }}
-                    ></div>
-                  </div>
+                <div className="bg-purple-50 p-3 rounded-lg">
+                  <p className="text-xs text-purple-700 uppercase font-semibold">Projects</p>
+                  <p className="text-2xl font-bold text-purple-700">{projects.length}</p>
                 </div>
               </div>
             </div>
