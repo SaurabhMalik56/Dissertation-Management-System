@@ -8,6 +8,7 @@ const Dashboard = () => {
   const { user } = useSelector((state) => state.auth);
   const [activeTab, setActiveTab] = useState('users');
   const [students, setStudents] = useState([]);
+  const [hods, setHods] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [stats, setStats] = useState({
     totalUsers: 0,
@@ -27,6 +28,7 @@ const Dashboard = () => {
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
   const [isAddingStudent, setIsAddingStudent] = useState(false);
   const [error, setError] = useState(null);
+  const [isLoadingHods, setIsLoadingHods] = useState(false);
 
   useEffect(() => {
     if (user && user.token) {
@@ -38,6 +40,8 @@ const Dashboard = () => {
   useEffect(() => {
     if (activeTab === 'users' && students.length === 0 && !isLoadingStudents) {
       fetchStudents();
+    } else if (activeTab === 'departments' && hods.length === 0 && !isLoadingHods) {
+      fetchHods();
     }
   }, [activeTab]);
 
@@ -88,6 +92,25 @@ const Dashboard = () => {
     } catch (error) {
       console.error('Error fetching system stats:', error);
       toast.error('Failed to load system statistics');
+    }
+  };
+
+  const fetchHods = async () => {
+    if (!user || !user.token) return;
+    
+    try {
+      setIsLoadingHods(true);
+      setError(null);
+      
+      const response = await adminService.getAllHods(user.token);
+      setHods(response.data);
+      
+    } catch (error) {
+      console.error('Error fetching HODs:', error);
+      setError('Failed to load HOD data. Please try again.');
+      toast.error('Unable to fetch HODs from database');
+    } finally {
+      setIsLoadingHods(false);
     }
   };
 
@@ -387,45 +410,65 @@ const Dashboard = () => {
                 </div>
               )}
               
-              {/* Departments Tab */}
+              {/* Departments Tab (now HODs) */}
               {activeTab === 'departments' && (
                 <div>
                   <div className="flex justify-between items-center mb-6">
                     <h2 className="text-xl font-semibold text-gray-800">HOD Management</h2>
-                    <button className="btn btn-primary">Add HOD</button>
+                    <button 
+                      className="btn btn-secondary"
+                      onClick={fetchHods}
+                      disabled={isLoadingHods}
+                    >
+                      {isLoadingHods ? 'Refreshing...' : 'Refresh List'}
+                    </button>
                   </div>
                   
-                  <div className="table-container">
-                    <table className="table">
-                      <thead>
-                        <tr>
-                          <th>Department</th>
-                          <th>HOD</th>
-                          <th>Faculty</th>
-                          <th>Students</th>
-                          <th>Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {departments.map(dept => (
-                          <tr key={dept.id}>
-                            <td className="font-medium text-gray-800">{dept.name}</td>
-                            <td>{dept.hod}</td>
-                            <td>{dept.faculty}</td>
-                            <td>{dept.students}</td>
-                            <td>
-                              <button className="text-indigo-600 hover:text-indigo-900 mr-2">
-                                Edit
-                              </button>
-                              <button className="text-red-600 hover:text-red-900">
-                                Delete
-                              </button>
-                            </td>
+                  {isLoadingHods ? (
+                    <div className="flex justify-center items-center h-64">
+                      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
+                      <p className="ml-3 text-indigo-500">Loading HODs from database...</p>
+                    </div>
+                  ) : error ? (
+                    <div className="bg-red-50 p-6 rounded-md">
+                      <p className="text-red-800">{error}</p>
+                      <button 
+                        className="mt-4 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700" 
+                        onClick={fetchHods}
+                      >
+                        Try Again
+                      </button>
+                    </div>
+                  ) : hods.length === 0 ? (
+                    <div className="bg-gray-50 p-6 text-center rounded-md">
+                      <p className="text-gray-500">No HODs found in the database.</p>
+                    </div>
+                  ) : (
+                    <div className="table-container">
+                      <table className="w-full border-collapse">
+                        <thead>
+                          <tr>
+                            <th className="text-left py-3 px-6 border-b border-gray-200 w-1/3">Full Name</th>
+                            <th className="text-left py-3 px-6 border-b border-gray-200 w-1/3">Email</th>
+                            <th className="text-left py-3 px-6 border-b border-gray-200 w-1/3">Department</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                        </thead>
+                        <tbody>
+                          {hods.map(hod => (
+                            <tr key={hod.id} className="hover:bg-gray-50">
+                              <td className="py-3 px-6 border-b border-gray-200">{hod.name}</td>
+                              <td className="py-3 px-6 border-b border-gray-200">{hod.email}</td>
+                              <td className="py-3 px-6 border-b border-gray-200">{hod.department}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      
+                      <div className="mt-4 text-sm text-gray-500">
+                        Showing {hods.length} HODs from database
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
               

@@ -128,6 +128,38 @@ const deleteStudent = async (token, studentId) => {
   }
 };
 
+// Get all HODs directly from database
+const getAllHods = async (token) => {
+  try {
+    const config = {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    };
+    
+    console.log('Fetching HODs from database...');
+    
+    // Get all users with role 'hod'
+    const response = await axios.get(`${API_URL}/users?role=hod`, config);
+    const hods = response.data || [];
+    
+    console.log(`Successfully fetched ${hods.length} HODs`);
+    
+    return { 
+      success: true, 
+      data: hods.map(hod => ({
+        id: hod._id,
+        name: hod.fullName,
+        email: hod.email,
+        department: hod.department || 'Not Assigned'
+      }))
+    };
+  } catch (error) {
+    console.error('Error fetching HODs:', error.message);
+    throw error;
+  }
+};
+
 // Get system stats
 const getSystemStats = async (token) => {
   try {
@@ -208,6 +240,7 @@ const adminService = {
   addStudent,
   updateStudent,
   deleteStudent,
+  getAllHods,
   getSystemStats
 };
 
