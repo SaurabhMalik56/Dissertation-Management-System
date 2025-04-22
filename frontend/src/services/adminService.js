@@ -359,6 +359,69 @@ const getSystemStats = async (token) => {
   }
 };
 
+// Get admin profile data
+const getAdminProfile = async (token) => {
+  try {
+    const config = {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    };
+    
+    const response = await axios.get(`${API_URL}/users/profile`, config);
+    return { success: true, data: response.data };
+  } catch (error) {
+    console.error('Error fetching admin profile:', error.message);
+    throw error;
+  }
+};
+
+// Update admin profile information
+const updateProfile = async (token, profileData) => {
+  try {
+    const config = {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    };
+    
+    const response = await axios.put(`${API_URL}/users/profile`, profileData, config);
+    
+    // Merge the updated data with existing token
+    const updatedUser = {
+      ...response.data,
+      token // Keep the existing token
+    };
+    
+    // Update localStorage
+    localStorage.setItem('user', JSON.stringify(updatedUser));
+    
+    return { success: true, data: updatedUser };
+  } catch (error) {
+    console.error('Error updating admin profile:', error.message);
+    throw error;
+  }
+};
+
+// Change admin password
+const changePassword = async (token, passwordData) => {
+  try {
+    const config = {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    };
+    
+    const response = await axios.put(`${API_URL}/users/change-password`, passwordData, config);
+    return { success: true, message: response.data.message || 'Password changed successfully' };
+  } catch (error) {
+    console.error('Error changing password:', error.message);
+    throw error;
+  }
+};
+
 // Export service functions
 const adminService = {
   getAllStudents,
@@ -369,7 +432,10 @@ const adminService = {
   getAllHods,
   getAllFaculty,
   getAllProjects,
-  getSystemStats
+  getSystemStats,
+  getAdminProfile,
+  updateProfile,
+  changePassword
 };
 
 export default adminService; 
