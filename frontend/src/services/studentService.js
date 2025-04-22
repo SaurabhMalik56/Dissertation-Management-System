@@ -239,6 +239,11 @@ const getStudentGuide = async (token) => {
     return response.data;
   } catch (error) {
     console.error("Error fetching guide:", error);
+    // Instead of throwing the error, return null to indicate no guide is assigned
+    if (error.response && error.response.status === 404) {
+      console.log("No guide assigned yet, returning null");
+      return null;
+    }
     throw error;
   }
 };

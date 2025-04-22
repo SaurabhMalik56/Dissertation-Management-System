@@ -83,9 +83,15 @@ const Dashboard = () => {
         // Fetch meetings directly from the guide's database
         let meetings = [];
         try {
-          console.log('Fetching meetings from guide database');
-          meetings = await studentService.getMeetingsFromGuide(user.token);
-          console.log('Meetings fetched from guide database:', meetings.length);
+          // Only fetch meetings if guide is assigned
+          if (data.guide && data.guide._id) {
+            console.log('Fetching meetings from guide database');
+            meetings = await studentService.getMeetingsFromGuide(user.token);
+            console.log('Meetings fetched from guide database:', meetings.length);
+          } else {
+            console.log('No guide assigned, skipping meetings fetch');
+            meetings = [];
+          }
         } catch (meetingsError) {
           console.error('Error fetching meetings from guide:', meetingsError);
           // Fall back to regular meetings from dashboard if available
@@ -187,9 +193,15 @@ const Dashboard = () => {
       // Fetch meetings directly from the guide's database with force refresh
       let meetings = [];
       try {
-        console.log('Refreshing meetings from guide database');
-        meetings = await studentService.getMeetingsFromGuide(user.token, true);
-        console.log('Refreshed meetings from guide database:', meetings.length);
+        // Only fetch meetings if guide is assigned
+        if (data.guide && data.guide._id) {
+          console.log('Refreshing meetings from guide database');
+          meetings = await studentService.getMeetingsFromGuide(user.token, true);
+          console.log('Refreshed meetings from guide database:', meetings.length);
+        } else {
+          console.log('No guide assigned, skipping meetings refresh');
+          meetings = [];
+        }
       } catch (meetingsError) {
         console.error('Error refreshing meetings from guide:', meetingsError);
         // Fall back to regular meetings from dashboard if available
@@ -497,7 +509,7 @@ const Dashboard = () => {
                               <svg className="h-5 w-5 text-indigo-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                               </svg>
-                              <span className="text-indigo-700 font-medium break-all">{dashboardData.guide.email}</span>
+                              <span className="text-indigo-700 font-medium break-all">{dashboardData.guide && dashboardData.guide.email ? dashboardData.guide.email : 'Email not available'}</span>
                             </div>
                             
                             <div className="mt-4 text-center">

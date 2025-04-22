@@ -29,13 +29,26 @@ const GuideInfo = () => {
       
       // Show toast notification on manual refresh
       if (showToast) {
-        toast.success('Guide information refreshed');
+        if (data) {
+          toast.success('Guide information refreshed');
+        } else {
+          toast.info('No guide has been assigned to you yet');
+        }
       }
     } catch (err) {
       console.error('Error fetching guide info:', err);
-      setError('Failed to fetch guide information. Please try again later.');
-      if (showToast) {
-        toast.error('Failed to refresh guide information');
+      // Check if it's a 404 error (no guide assigned)
+      if (err.response && err.response.status === 404) {
+        setGuide(null);
+        setError(null);
+        if (showToast) {
+          toast.info('No guide has been assigned to you yet');
+        }
+      } else {
+        setError('Failed to fetch guide information. Please try again later.');
+        if (showToast) {
+          toast.error('Failed to refresh guide information');
+        }
       }
     } finally {
       setLoading(false);
@@ -100,6 +113,9 @@ const GuideInfo = () => {
 
   // Get faculty name, falling back to email username if needed
   const getFacultyName = () => {
+    // First, check if guide exists
+    if (!guide) return "Faculty";
+    
     // Check for name fields first
     if (guide.fullName) return guide.fullName;
     if (guide.name) return guide.name;
@@ -148,7 +164,7 @@ const GuideInfo = () => {
       
       <div className="flex items-center text-gray-700">
         <FaEnvelope className="text-gray-500 mr-3" />
-        <span>{guide.email || 'Email not available'}</span>
+        <span>{guide && guide.email ? guide.email : 'Email not available'}</span>
       </div>
     </div>
   );
