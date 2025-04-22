@@ -3,6 +3,7 @@ import { useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
 import axios from 'axios';
 import adminService from '../../services/adminService';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 // Create a class component for the SearchBar to have more direct control over input focus
 class SearchBarComponent extends Component {
@@ -60,6 +61,8 @@ class SearchBarComponent extends Component {
 
 const Dashboard = () => {
   const { user } = useSelector((state) => state.auth);
+  const location = useLocation();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('users');
   const [students, setStudents] = useState([]);
   const [hods, setHods] = useState([]);
@@ -98,18 +101,33 @@ const Dashboard = () => {
     }
   }, [user]);
 
-  // When tab changes, make sure data is loaded for that tab
+  // Set active tab based on URL query parameter
   useEffect(() => {
-    if (activeTab === 'users' && students.length === 0 && !isLoadingStudents) {
-      fetchStudents();
-    } else if (activeTab === 'departments' && hods.length === 0 && !isLoadingHods) {
-      fetchHods();
-    } else if (activeTab === 'reports' && faculty.length === 0 && !isLoadingFaculty) {
-      fetchFaculty();
-    } else if (activeTab === 'settings' && projects.length === 0 && !isLoadingProjects) {
-      fetchProjects();
+    const params = new URLSearchParams(location.search);
+    const tabParam = params.get('tab');
+    if (tabParam && ['users', 'departments', 'reports', 'settings'].includes(tabParam)) {
+      setActiveTab(tabParam);
+      
+      // Load data based on the tab from URL parameters
+      if (tabParam === 'users' && students.length === 0 && !isLoadingStudents) {
+        fetchStudents();
+      } else if (tabParam === 'departments' && hods.length === 0 && !isLoadingHods) {
+        fetchHods();
+      } else if (tabParam === 'reports' && faculty.length === 0 && !isLoadingFaculty) {
+        fetchFaculty();
+      } else if (tabParam === 'settings' && projects.length === 0 && !isLoadingProjects) {
+        fetchProjects();
+      }
     }
-  }, [activeTab]);
+  }, [location, students.length, hods.length, faculty.length, projects.length, isLoadingStudents, isLoadingHods, isLoadingFaculty, isLoadingProjects]);
+
+  // When tab changes, update the URL and make sure data is loaded
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    navigate(`/admin?tab=${tab}`, { replace: true });
+    
+    // Load data if needed - we'll rely on the useEffect above to load data
+  };
 
   const fetchData = async () => {
     try {
@@ -407,7 +425,7 @@ const Dashboard = () => {
               <li className="mr-2">
                 <button
                   className={`tab ${activeTab === 'users' ? 'tab-active' : 'tab-inactive'}`}
-                  onClick={() => setActiveTab('users')}
+                  onClick={() => handleTabChange('users')}
                 >
                   Students
                 </button>
@@ -415,15 +433,15 @@ const Dashboard = () => {
               <li className="mr-2">
                 <button
                   className={`tab ${activeTab === 'departments' ? 'tab-active' : 'tab-inactive'}`}
-                  onClick={() => setActiveTab('departments')}
+                  onClick={() => handleTabChange('departments')}
                 >
-                  Hods
+                  HODs
                 </button>
               </li>
               <li className="mr-2">
                 <button
                   className={`tab ${activeTab === 'reports' ? 'tab-active' : 'tab-inactive'}`}
-                  onClick={() => setActiveTab('reports')}
+                  onClick={() => handleTabChange('reports')}
                 >
                   Faculty
                 </button>
@@ -431,7 +449,7 @@ const Dashboard = () => {
               <li className="mr-2">
                 <button
                   className={`tab ${activeTab === 'settings' ? 'tab-active' : 'tab-inactive'}`}
-                  onClick={() => setActiveTab('settings')}
+                  onClick={() => handleTabChange('settings')}
                 >
                   Projects
                 </button>
