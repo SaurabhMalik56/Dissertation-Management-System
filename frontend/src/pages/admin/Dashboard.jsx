@@ -300,8 +300,9 @@ const Dashboard = () => {
       }
     } catch (err) {
       console.error('Error fetching meeting details:', err);
-      setError('Failed to load meeting details. Please try again.');
-      toast.error('Unable to fetch meeting details');
+      const errorMessage = err.response?.data?.message || err.message || 'Unknown error occurred';
+      setError(`Failed to load meeting details: ${errorMessage}`);
+      toast.error(`Unable to fetch meeting details: ${errorMessage}`);
     } finally {
       setIsLoadingMeetingDetails(false);
     }
@@ -1102,21 +1103,25 @@ const Dashboard = () => {
                               <table className="w-full border-collapse">
                                 <thead>
                                   <tr className="bg-gray-50">
+                                    <th className="text-left py-3 px-6 border-b border-gray-200 font-semibold text-gray-700">Meeting #</th>
                                     <th className="text-left py-3 px-6 border-b border-gray-200 font-semibold text-gray-700">Date & Time</th>
                                     <th className="text-left py-3 px-6 border-b border-gray-200 font-semibold text-gray-700">Title</th>
+                                    <th className="text-left py-3 px-6 border-b border-gray-200 font-semibold text-gray-700">Type</th>
                                     <th className="text-left py-3 px-6 border-b border-gray-200 font-semibold text-gray-700">Duration</th>
                                     <th className="text-left py-3 px-6 border-b border-gray-200 font-semibold text-gray-700">Status</th>
-                                    <th className="text-left py-3 px-6 border-b border-gray-200 font-semibold text-gray-700">Location</th>
+                                    <th className="text-left py-3 px-6 border-b border-gray-200 font-semibold text-gray-700">Action</th>
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {meetingDetails.meetings.map((meeting, index) => (
-                                    <tr key={`meeting-${meeting.id}`} className={`${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-indigo-50`}>
+                                    <tr key={`meeting-${meeting._id}`} className={`${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-indigo-50`}>
+                                      <td className="py-3 px-6 border-b border-gray-200">{meeting.meetingNumber}</td>
                                       <td className="py-3 px-6 border-b border-gray-200">
-                                        {formatDate(meeting.date)}<br/>
+                                        {formatDate(meeting.scheduledDate)}<br/>
                                         <span className="text-xs text-gray-500">{meeting.startTime}</span>
                                       </td>
                                       <td className="py-3 px-6 border-b border-gray-200 font-medium">{meeting.title}</td>
+                                      <td className="py-3 px-6 border-b border-gray-200">{meeting.meetingType}</td>
                                       <td className="py-3 px-6 border-b border-gray-200">{meeting.duration}</td>
                                       <td className="py-3 px-6 border-b border-gray-200">
                                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
@@ -1127,7 +1132,17 @@ const Dashboard = () => {
                                           {meeting.status}
                                         </span>
                                       </td>
-                                      <td className="py-3 px-6 border-b border-gray-200">{meeting.location}</td>
+                                      <td className="py-3 px-6 border-b border-gray-200">
+                                        <button 
+                                          className="text-indigo-600 hover:text-indigo-900"
+                                          onClick={() => {
+                                            // Scroll to meeting details section
+                                            document.getElementById(`meeting-details-${meeting._id}`)?.scrollIntoView({ behavior: 'smooth' });
+                                          }}
+                                        >
+                                          View Details
+                                        </button>
+                                      </td>
                                     </tr>
                                   ))}
                                 </tbody>
@@ -1139,28 +1154,114 @@ const Dashboard = () => {
                             </div>
                           )}
                           
-                          {/* If there is a meeting, show details of the most recent one */}
+                          {/* Detailed view for each meeting */}
                           {meetingDetails.meetings.length > 0 && (
-                            <div className="mt-6 bg-indigo-50 p-4 rounded-lg border border-indigo-100">
-                              <h4 className="font-semibold text-gray-700 mb-2">Most Recent Meeting Details</h4>
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                  <p className="text-sm text-gray-700"><span className="font-medium">Title:</span> {meetingDetails.meetings[0].title}</p>
-                                  <p className="text-sm text-gray-700"><span className="font-medium">Date:</span> {formatDate(meetingDetails.meetings[0].date)}</p>
-                                  <p className="text-sm text-gray-700"><span className="font-medium">Time:</span> {meetingDetails.meetings[0].startTime}</p>
-                                  <p className="text-sm text-gray-700"><span className="font-medium">Duration:</span> {meetingDetails.meetings[0].duration}</p>
-                                  <p className="text-sm text-gray-700"><span className="font-medium">Location:</span> {meetingDetails.meetings[0].location}</p>
-                                </div>
-                                <div>
-                                  <p className="text-sm text-gray-700 mb-2"><span className="font-medium">Agenda:</span></p>
-                                  <p className="text-sm text-gray-600 mb-4">{meetingDetails.meetings[0].agenda}</p>
+                            <div className="mt-8 space-y-8">
+                              <h4 className="font-semibold text-gray-700 mb-4">Meeting Details</h4>
+                              
+                              {meetingDetails.meetings.map(meeting => (
+                                <div 
+                                  key={`meeting-details-${meeting._id}`}
+                                  id={`meeting-details-${meeting._id}`}
+                                  className="bg-white p-6 rounded-lg border shadow-sm"
+                                >
+                                  <div className="flex justify-between items-center mb-4">
+                                    <h5 className="text-lg font-semibold text-gray-800">
+                                      Meeting #{meeting.meetingNumber}: {meeting.title}
+                                    </h5>
+                                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium 
+                                      ${meeting.status.toLowerCase() === 'completed' ? 'bg-green-100 text-green-800 border border-green-200' : 
+                                        meeting.status.toLowerCase() === 'cancelled' ? 'bg-red-100 text-red-800 border border-red-200' : 
+                                        meeting.status.toLowerCase() === 'rescheduled' ? 'bg-yellow-100 text-yellow-800 border border-yellow-200' :
+                                        'bg-blue-100 text-blue-800 border border-blue-200'}`}>
+                                      {meeting.status}
+                                    </span>
+                                  </div>
                                   
-                                  <p className="text-sm text-gray-700 mb-2"><span className="font-medium">Summary:</span></p>
-                                  <p className="text-sm text-gray-600">
-                                    {meetingDetails.meetings[0].summary || 'No summary available yet.'}
-                                  </p>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                                    <div>
+                                      <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                          <p className="text-sm text-gray-500">Meeting ID</p>
+                                          <p className="font-medium">{meeting._id}</p>
+                                        </div>
+                                        <div>
+                                          <p className="text-sm text-gray-500">Meeting Type</p>
+                                          <p className="font-medium">{meeting.meetingType}</p>
+                                        </div>
+                                        <div>
+                                          <p className="text-sm text-gray-500">Scheduled Date</p>
+                                          <p className="font-medium">{formatDate(meeting.scheduledDate)}</p>
+                                        </div>
+                                        <div>
+                                          <p className="text-sm text-gray-500">Time</p>
+                                          <p className="font-medium">{meeting.startTime}</p>
+                                        </div>
+                                        <div>
+                                          <p className="text-sm text-gray-500">Duration</p>
+                                          <p className="font-medium">{meeting.duration}</p>
+                                        </div>
+                                        <div>
+                                          <p className="text-sm text-gray-500">Location</p>
+                                          <p className="font-medium">{meeting.location}</p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    
+                                    <div>
+                                      <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                          <p className="text-sm text-gray-500">Student ID</p>
+                                          <p className="font-medium">{meeting.studentId}</p>
+                                        </div>
+                                        <div>
+                                          <p className="text-sm text-gray-500">Faculty ID</p>
+                                          <p className="font-medium">{meeting.facultyId}</p>
+                                        </div>
+                                        <div>
+                                          <p className="text-sm text-gray-500">Project ID</p>
+                                          <p className="font-medium">{meeting.projectId}</p>
+                                        </div>
+                                        {meeting.studentPoints !== null && (
+                                          <div>
+                                            <p className="text-sm text-gray-500">Student Points</p>
+                                            <p className="font-medium">{meeting.studentPoints} / 10</p>
+                                          </div>
+                                        )}
+                                        <div>
+                                          <p className="text-sm text-gray-500">Created At</p>
+                                          <p className="font-medium">{formatDate(meeting.createdAt)}</p>
+                                        </div>
+                                        <div>
+                                          <p className="text-sm text-gray-500">Updated At</p>
+                                          <p className="font-medium">{formatDate(meeting.updatedAt)}</p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="mt-4 space-y-4">
+                                    <div>
+                                      <h6 className="text-sm font-semibold text-gray-700 mb-2">Agenda</h6>
+                                      <p className="text-gray-600 bg-gray-50 p-3 rounded-md">{meeting.agenda}</p>
+                                    </div>
+                                    
+                                    {meeting.meetingSummary && (
+                                      <div>
+                                        <h6 className="text-sm font-semibold text-gray-700 mb-2">Meeting Summary</h6>
+                                        <p className="text-gray-600 bg-gray-50 p-3 rounded-md">{meeting.meetingSummary}</p>
+                                      </div>
+                                    )}
+                                    
+                                    {meeting.guideRemarks && (
+                                      <div>
+                                        <h6 className="text-sm font-semibold text-gray-700 mb-2">Guide Remarks</h6>
+                                        <p className="text-gray-600 bg-gray-50 p-3 rounded-md">{meeting.guideRemarks}</p>
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
-                              </div>
+                              ))}
                             </div>
                           )}
                         </div>
