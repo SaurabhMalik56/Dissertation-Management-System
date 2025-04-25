@@ -422,7 +422,132 @@ const changePassword = async (token, passwordData) => {
   }
 };
 
-// Export service functions
+// Get all meetings
+const getAllMeetings = async (token) => {
+  try {
+    const config = {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    };
+    
+    // Simulating API call with a delay
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        // Create mock meeting data for demonstration
+        const meetingTypes = ['Progress Review', 'Project Discussion', 'Initial Setup', 'Final Review'];
+        const statuses = ['Scheduled', 'Completed', 'Cancelled', 'Rescheduled'];
+        const departments = ['Computer Science', 'Electrical Engineering', 'Mechanical Engineering', 'Civil Engineering'];
+        
+        // Generate between 10-20 random meetings
+        const count = Math.floor(Math.random() * 10) + 10;
+        const meetings = [];
+        
+        for (let i = 1; i <= count; i++) {
+          const meeting = {
+            id: `meeting-${i}`,
+            title: `${meetingTypes[Math.floor(Math.random() * meetingTypes.length)]} Meeting`,
+            studentId: `student-${Math.floor(Math.random() * 15) + 1}`,
+            studentName: `Student ${Math.floor(Math.random() * 20) + 1}`,
+            guideId: `guide-${Math.floor(Math.random() * 10) + 1}`,
+            guideName: `Guide ${Math.floor(Math.random() * 10) + 1}`,
+            date: new Date(Date.now() + (Math.random() * 30 - 15) * 24 * 60 * 60 * 1000).toISOString(),
+            status: statuses[Math.floor(Math.random() * statuses.length)],
+            department: departments[Math.floor(Math.random() * departments.length)],
+            notes: Math.random() > 0.3 ? `Discussion about ${['project progress', 'implementation challenges', 'literature review', 'methodology'][Math.floor(Math.random() * 4)]}` : null
+          };
+          meetings.push(meeting);
+        }
+        
+        resolve({ success: true, data: meetings });
+      }, 500);
+    });
+  } catch (error) {
+    console.error('Error fetching meetings:', error.message);
+    throw error;
+  }
+};
+
+// Get detailed information about a specific meeting and all meetings for a student
+const getMeetingDetails = async (token, studentId) => {
+  try {
+    const config = {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    };
+    
+    console.log(`Fetching meeting details for student ID: ${studentId}`);
+    
+    // In a real implementation, this would make an API call to fetch meeting details
+    // For example: const response = await axios.get(`${API_URL}/meetings/student/${studentId}`, config);
+    
+    // Simulating API call with mock data
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        // Generate random meeting details for demonstration
+        const meetingDetails = {
+          studentInfo: {
+            id: studentId,
+            name: `Student ${studentId.split('-')[1] || '1'}`,
+            department: ['Computer Science', 'Electrical Engineering', 'Mechanical Engineering'][Math.floor(Math.random() * 3)],
+            email: `student${studentId.split('-')[1] || '1'}@university.edu`,
+            projectTitle: `Project Title for Student ${studentId.split('-')[1] || '1'}`
+          },
+          guideInfo: {
+            id: `guide-${Math.floor(Math.random() * 5) + 1}`,
+            name: `Guide ${Math.floor(Math.random() * 5) + 1}`,
+            department: ['Computer Science', 'Electrical Engineering', 'Mechanical Engineering'][Math.floor(Math.random() * 3)],
+            email: `guide${Math.floor(Math.random() * 5) + 1}@university.edu`
+          },
+          meetings: []
+        };
+        
+        // Generate 3-7 meetings for this student
+        const meetingCount = Math.floor(Math.random() * 5) + 3;
+        const meetingTypes = ['Progress Review', 'Project Discussion', 'Initial Setup', 'Final Review', 'Methodology Discussion', 'Implementation Review'];
+        const statuses = ['Scheduled', 'Completed', 'Cancelled', 'Rescheduled'];
+        
+        for (let i = 1; i <= meetingCount; i++) {
+          const isCompleted = Math.random() > 0.5;
+          const meetingDate = new Date(Date.now() + (Math.random() * 30 - 15) * 24 * 60 * 60 * 1000);
+          
+          const meeting = {
+            id: `meeting-${studentId}-${i}`,
+            title: `${meetingTypes[Math.floor(Math.random() * meetingTypes.length)]}`,
+            date: meetingDate.toISOString(),
+            startTime: `${Math.floor(Math.random() * 8) + 9}:${Math.random() > 0.5 ? '00' : '30'}`,
+            duration: `${Math.floor(Math.random() * 2) + 1} hour${Math.random() > 0.5 ? 's' : ''}`,
+            status: isCompleted ? 'Completed' : statuses[Math.floor(Math.random() * statuses.length)],
+            location: Math.random() > 0.3 ? 'Online (Microsoft Teams)' : 'Department Conference Room',
+            agenda: `Discuss ${['project progress', 'implementation challenges', 'literature review', 'methodology', 'results analysis'][Math.floor(Math.random() * 5)]}`,
+            summary: isCompleted ? 
+              `The guide and student discussed ${['recent progress', 'implementation challenges', 'research methodology', 'next steps'][Math.floor(Math.random() * 4)]}. ` +
+              `They agreed to ${['focus on completing the implementation', 'revise the research methodology', 'prepare for the next phase', 'address the identified issues'][Math.floor(Math.random() * 4)]}.` : 
+              null,
+            notes: Math.random() > 0.3 ? 
+              `Student needs to ${['improve documentation', 'complete pending tasks', 'address feedback', 'prepare slides for next meeting'][Math.floor(Math.random() * 4)]}` : 
+              null,
+            createdAt: new Date(meetingDate.getTime() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString(),
+            updatedAt: new Date(meetingDate.getTime() - Math.random() * 2 * 24 * 60 * 60 * 1000).toISOString()
+          };
+          
+          meetingDetails.meetings.push(meeting);
+        }
+        
+        // Sort meetings by date (most recent first)
+        meetingDetails.meetings.sort((a, b) => new Date(b.date) - new Date(a.date));
+        
+        resolve({ success: true, data: meetingDetails });
+      }, 800);
+    });
+  } catch (error) {
+    console.error(`Error fetching meeting details for student ID ${studentId}:`, error.message);
+    throw error;
+  }
+};
+
+// Export all service functions
 const adminService = {
   getAllStudents,
   getStudentById,
@@ -435,7 +560,9 @@ const adminService = {
   getSystemStats,
   getAdminProfile,
   updateProfile,
-  changePassword
+  changePassword,
+  getAllMeetings,
+  getMeetingDetails
 };
 
 export default adminService; 

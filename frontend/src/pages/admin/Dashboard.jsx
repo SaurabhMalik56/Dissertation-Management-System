@@ -4,6 +4,9 @@ import { toast } from 'react-toastify';
 import axios from 'axios';
 import adminService from '../../services/adminService';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { FaCalendarCheck } from 'react-icons/fa';
+import Loader from '../../components/common/Loader';
+import ErrorMessage from '../../components/common/ErrorMessage';
 
 // Create a class component for the SearchBar to have more direct control over input focus
 class SearchBarComponent extends Component {
@@ -94,6 +97,13 @@ const Dashboard = () => {
   const [isLoadingProjects, setIsLoadingProjects] = useState(false);
   const [isAddingStudent, setIsAddingStudent] = useState(false);
   const [error, setError] = useState(null);
+  const [meetings, setMeetings] = useState([]);
+  const [isLoadingMeetings, setIsLoadingMeetings] = useState(false);
+  const [meetingSearch, setMeetingSearch] = useState('');
+  const [selectedStudentId, setSelectedStudentId] = useState(null);
+  const [meetingDetails, setMeetingDetails] = useState(null);
+  const [isLoadingMeetingDetails, setIsLoadingMeetingDetails] = useState(false);
+  const [viewingMeetingDetails, setViewingMeetingDetails] = useState(false);
 
   useEffect(() => {
     if (user && user.token) {
@@ -105,7 +115,7 @@ const Dashboard = () => {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const tabParam = params.get('tab');
-    if (tabParam && ['users', 'departments', 'reports', 'settings'].includes(tabParam)) {
+    if (tabParam && ['users', 'departments', 'reports', 'settings', 'meetings'].includes(tabParam)) {
       setActiveTab(tabParam);
       
       // Load data based on the tab from URL parameters
@@ -117,9 +127,11 @@ const Dashboard = () => {
         fetchFaculty();
       } else if (tabParam === 'settings' && projects.length === 0 && !isLoadingProjects) {
         fetchProjects();
+      } else if (tabParam === 'meetings' && meetings.length === 0 && !isLoadingMeetings) {
+        fetchMeetings();
       }
     }
-  }, [location, students.length, hods.length, faculty.length, projects.length, isLoadingStudents, isLoadingHods, isLoadingFaculty, isLoadingProjects]);
+  }, [location, students.length, hods.length, faculty.length, projects.length, meetings.length, isLoadingStudents, isLoadingHods, isLoadingFaculty, isLoadingProjects, isLoadingMeetings]);
 
   // When tab changes, update the URL and make sure data is loaded
   const handleTabChange = (tab) => {
@@ -129,9 +141,9 @@ const Dashboard = () => {
     // Load data if needed - we'll rely on the useEffect above to load data
   };
 
-  const fetchData = async () => {
-    try {
-      setIsLoading(true);
+    const fetchData = async () => {
+      try {
+        setIsLoading(true);
       setError(null);
       
       // Fetch initial data including projects for accurate stats display
@@ -140,11 +152,11 @@ const Dashboard = () => {
         fetchSystemStats(),
         fetchProjects() // Added to ensure project count is accurate from the start
       ]);
-      
-      setIsLoading(false);
-    } catch (err) {
-      setError('Failed to fetch dashboard data');
-      setIsLoading(false);
+          
+          setIsLoading(false);
+      } catch (err) {
+        setError('Failed to fetch dashboard data');
+        setIsLoading(false);
       toast.error('Failed to load dashboard data. Please try again later.');
     }
   };
@@ -237,6 +249,75 @@ const Dashboard = () => {
     }
   };
 
+  // Helper function to format dates
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return 'Invalid Date';
+    
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  const fetchMeetings = async () => {
+    if (!user || !user.token) return;
+    try {
+      setIsLoadingMeetings(true);
+      setError(null);
+      const response = await adminService.getAllMeetings(user.token);
+      if (response.success) {
+        setMeetings(response.data);
+      } else {
+        setError('Failed to fetch meetings data');
+      }
+    } catch (err) {
+      console.error('Error fetching meetings:', err);
+      setError('Failed to load meeting data. Please try again.');
+      toast.error('Unable to fetch meetings');
+    } finally {
+      setIsLoadingMeetings(false);
+    }
+  };
+
+  const fetchMeetingDetails = async (studentId) => {
+    if (!user || !user.token || !studentId) return;
+    
+    try {
+      setIsLoadingMeetingDetails(true);
+      setError(null);
+      const response = await adminService.getMeetingDetails(user.token, studentId);
+      
+      if (response.success) {
+        setMeetingDetails(response.data);
+        setViewingMeetingDetails(true);
+      } else {
+        setError('Failed to fetch meeting details');
+        toast.error('Failed to load meeting details');
+      }
+    } catch (err) {
+      console.error('Error fetching meeting details:', err);
+      setError('Failed to load meeting details. Please try again.');
+      toast.error('Unable to fetch meeting details');
+    } finally {
+      setIsLoadingMeetingDetails(false);
+    }
+  };
+
+  const handleViewMeetingDetails = (studentId) => {
+    setSelectedStudentId(studentId);
+    fetchMeetingDetails(studentId);
+  };
+
+  const handleCloseMeetingDetails = () => {
+    setViewingMeetingDetails(false);
+    setMeetingDetails(null);
+    setSelectedStudentId(null);
+  };
+
   const handleAddStudent = async () => {
     // This would typically open a modal with a form
     toast.info('Add student functionality requires a form implementation');
@@ -307,6 +388,14 @@ const Dashboard = () => {
     project.status.toLowerCase().includes(projectSearch.toLowerCase())
   );
 
+  const filteredMeetings = meetings.filter(meeting =>
+    meeting.title.toLowerCase().includes(meetingSearch.toLowerCase()) ||
+    meeting.studentName.toLowerCase().includes(meetingSearch.toLowerCase()) ||
+    meeting.guideName.toLowerCase().includes(meetingSearch.toLowerCase()) ||
+    meeting.department.toLowerCase().includes(meetingSearch.toLowerCase()) ||
+    meeting.status.toLowerCase().includes(meetingSearch.toLowerCase())
+  );
+
   // Replace the functional SearchBar component with the class component
   const SearchBar = SearchBarComponent;
 
@@ -336,20 +425,20 @@ const Dashboard = () => {
                     <div>
                       <p className="text-xs text-indigo-700 uppercase font-semibold tracking-wider">Total Users</p>
                       <p className="text-2xl font-bold text-indigo-700 mt-1">{stats.totalUsers}</p>
-                    </div>
+                </div>
                     <div className="bg-indigo-100 p-2 rounded-full">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                       </svg>
-                    </div>
+            </div>
                   </div>
                   <div className="mt-2 text-xs text-indigo-600">All platform accounts</div>
-                </div>
-                
+            </div>
+            
                 {/* Students Card */}
                 <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-lg border border-blue-200 shadow-sm hover:shadow-md transition-all duration-300 transform hover:-translate-y-1">
                   <div className="flex items-center justify-between">
-                    <div>
+                <div>
                       <p className="text-xs text-blue-700 uppercase font-semibold tracking-wider">Students</p>
                       <p className="text-2xl font-bold text-blue-700 mt-1">{stats.totalStudents}</p>
                     </div>
@@ -359,7 +448,7 @@ const Dashboard = () => {
                         <path d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14zm-4 6v-7.5l4-2.222" />
                       </svg>
-                    </div>
+                  </div>
                   </div>
                   <div className="mt-2 text-xs text-blue-600">Enrolled students</div>
                 </div>
@@ -367,7 +456,7 @@ const Dashboard = () => {
                 {/* Faculty Card */}
                 <div className="bg-gradient-to-br from-green-50 to-green-100 p-4 rounded-lg border border-green-200 shadow-sm hover:shadow-md transition-all duration-300 transform hover:-translate-y-1">
                   <div className="flex items-center justify-between">
-                    <div>
+                <div>
                       <p className="text-xs text-green-700 uppercase font-semibold tracking-wider">Faculty</p>
                       <p className="text-2xl font-bold text-green-700 mt-1">{stats.totalFaculty}</p>
                     </div>
@@ -375,7 +464,7 @@ const Dashboard = () => {
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                       </svg>
-                    </div>
+                  </div>
                   </div>
                   <div className="mt-2 text-xs text-green-600">Teaching staff</div>
                 </div>
@@ -383,7 +472,7 @@ const Dashboard = () => {
                 {/* HODs Card */}
                 <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 p-4 rounded-lg border border-yellow-200 shadow-sm hover:shadow-md transition-all duration-300 transform hover:-translate-y-1">
                   <div className="flex items-center justify-between">
-                    <div>
+                <div>
                       <p className="text-xs text-yellow-700 uppercase font-semibold tracking-wider">HODs</p>
                       <p className="text-2xl font-bold text-yellow-700 mt-1">{stats.totalHods}</p>
                     </div>
@@ -391,7 +480,7 @@ const Dashboard = () => {
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                       </svg>
-                    </div>
+                  </div>
                   </div>
                   <div className="mt-2 text-xs text-yellow-600">Department heads</div>
                 </div>
@@ -399,7 +488,7 @@ const Dashboard = () => {
                 {/* Projects Card - Using actual project count from state */}
                 <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-4 rounded-lg border border-purple-200 shadow-sm hover:shadow-md transition-all duration-300 transform hover:-translate-y-1">
                   <div className="flex items-center justify-between">
-                    <div>
+                <div>
                       <p className="text-xs text-purple-700 uppercase font-semibold tracking-wider">Projects</p>
                       <p className="text-2xl font-bold text-purple-700 mt-1">{projects.length}</p>
                     </div>
@@ -407,7 +496,7 @@ const Dashboard = () => {
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
                       </svg>
-                    </div>
+                  </div>
                   </div>
                   <div className="mt-2 text-xs text-purple-600">Active dissertations</div>
                 </div>
@@ -454,6 +543,14 @@ const Dashboard = () => {
                   Projects
                 </button>
               </li>
+              <li className="mr-2">
+                <button
+                  className={`tab ${activeTab === 'meetings' ? 'tab-active' : 'tab-inactive'}`}
+                  onClick={() => handleTabChange('meetings')}
+                >
+                  Meetings
+                </button>
+              </li>
             </ul>
           </div>
         </div>
@@ -488,7 +585,7 @@ const Dashboard = () => {
                         disabled={isAddingStudent}
                       >
                         {isAddingStudent ? 'Adding...' : 'Add Student'}
-                      </button>
+                        </button>
                     </div>
                   </div>
                   
@@ -523,23 +620,23 @@ const Dashboard = () => {
                       )}
                     </div>
                   ) : (
-                    <div className="table-container">
+                  <div className="table-container">
                       <table className="w-full border-collapse">
-                        <thead>
-                          <tr>
+                      <thead>
+                        <tr>
                             <th className="text-left py-3 px-6 border-b border-gray-200 w-1/3">Full Name</th>
                             <th className="text-left py-3 px-6 border-b border-gray-200 w-1/3">Email Address</th>
                             <th className="text-left py-3 px-6 border-b border-gray-200 w-1/3">Assigned Guide</th>
-                          </tr>
-                        </thead>
-                        <tbody>
+                        </tr>
+                      </thead>
+                      <tbody>
                           {filteredStudents.map(student => (
                             <tr key={student.id} className="hover:bg-gray-50">
                               <td className="py-3 px-6 border-b border-gray-200">{student.name}</td>
                               <td className="py-3 px-6 border-b border-gray-200">{student.email}</td>
                               <td className="py-3 px-6 border-b border-gray-200">
                                 {student.guideName ? (
-                                  <div className="flex items-center">
+                              <div className="flex items-center">
                                     <span className="w-2 h-2 mr-2 bg-green-500 rounded-full"></span>
                                     <span>{student.guideName}</span>
                                   </div>
@@ -547,18 +644,18 @@ const Dashboard = () => {
                                   <div className="flex items-center text-gray-500">
                                     <span className="w-2 h-2 mr-2 bg-gray-300 rounded-full"></span>
                                     <span>Not Assigned</span>
-                                  </div>
+                              </div>
                                 )}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                       
                       <div className="mt-4 text-sm text-gray-500">
                         Showing {filteredStudents.length} of {students.length} students
                         {studentSearch && ` (filtered by "${studentSearch}")`}
-                      </div>
+                    </div>
                     </div>
                   )}
                 </div>
@@ -609,31 +706,31 @@ const Dashboard = () => {
                       )}
                     </div>
                   ) : (
-                    <div className="table-container">
+                  <div className="table-container">
                       <table className="w-full border-collapse">
-                        <thead>
-                          <tr>
+                      <thead>
+                        <tr>
                             <th className="text-left py-3 px-6 border-b border-gray-200 w-1/3">Full Name</th>
                             <th className="text-left py-3 px-6 border-b border-gray-200 w-1/3">Email</th>
                             <th className="text-left py-3 px-6 border-b border-gray-200 w-1/3">Department</th>
-                          </tr>
-                        </thead>
-                        <tbody>
+                        </tr>
+                      </thead>
+                      <tbody>
                           {filteredHods.map(hod => (
                             <tr key={hod.id} className="hover:bg-gray-50">
                               <td className="py-3 px-6 border-b border-gray-200">{hod.name}</td>
                               <td className="py-3 px-6 border-b border-gray-200">{hod.email}</td>
                               <td className="py-3 px-6 border-b border-gray-200">{hod.department}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                       
                       <div className="mt-4 text-sm text-gray-500">
                         Showing {filteredHods.length} of {hods.length} HODs
                         {hodSearch && ` (filtered by "${hodSearch}")`}
                       </div>
-                    </div>
+                  </div>
                   )}
                 </div>
               )}
@@ -663,7 +760,7 @@ const Dashboard = () => {
                     <div className="flex justify-center items-center h-64">
                       <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
                       <p className="ml-3 text-indigo-500">Loading faculty from database...</p>
-                    </div>
+                      </div>
                   ) : error ? (
                     <div className="bg-red-50 p-6 rounded-md">
                       <p className="text-red-800">{error}</p>
@@ -673,7 +770,7 @@ const Dashboard = () => {
                       >
                         Try Again
                       </button>
-                    </div>
+                              </div>
                   ) : filteredFaculty.length === 0 ? (
                     <div className="bg-gray-50 p-6 text-center rounded-md">
                       {facultySearch ? (
@@ -774,7 +871,7 @@ const Dashboard = () => {
                         </svg>
                         Refresh
                       </button>
-                    </div>
+                        </div>
                   ) : (
                     <div className="table-container overflow-x-auto">
                       <table className="w-full border-collapse">
@@ -799,7 +896,7 @@ const Dashboard = () => {
                                 <div className="flex items-center">
                                   <span className={`w-2 h-2 mr-2 rounded-full ${project.studentId ? 'bg-green-500' : 'bg-gray-300'}`}></span>
                                   {project.studentName}
-                                </div>
+                        </div>
                               </td>
                               <td className="py-3 px-6 border-b border-gray-200">
                                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-50 text-yellow-700 border border-yellow-200">
@@ -810,7 +907,7 @@ const Dashboard = () => {
                                 <div className="flex items-center">
                                   <span className={`w-2 h-2 mr-2 rounded-full ${project.guide !== 'Not Assigned' ? 'bg-green-500' : 'bg-gray-300'}`}></span>
                                   {project.guide}
-                                </div>
+                        </div>
                               </td>
                               <td className="py-3 px-6 border-b border-gray-200">
                                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
@@ -829,6 +926,262 @@ const Dashboard = () => {
                       <div className="mt-4 text-sm text-gray-500">
                         Showing {filteredProjects.length} of {projects.length} projects
                         {projectSearch && ` (filtered by "${projectSearch}")`}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+                    
+              {/* Meetings Tab */}
+              {activeTab === 'meetings' && (
+                <div>
+                  <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-xl font-semibold text-gray-800">
+                      <FaCalendarCheck className="inline mr-2" />
+                      Student Meeting Management
+                    </h2>
+                    <button
+                      className="btn btn-secondary"
+                      onClick={fetchStudents}
+                      disabled={isLoadingStudents}
+                    >
+                      {isLoadingStudents ? 'Refreshing...' : 'Refresh Students'}
+                    </button>
+                  </div>
+
+                  {/* Search bar for students */}
+                  <SearchBar
+                    placeholder="Search students by name or email..."
+                    value={studentSearch}
+                    onChange={setStudentSearch}
+                  />
+
+                  {isLoadingStudents ? (
+                    <Loader text="Loading student data..." />
+                  ) : error ? (
+                    <ErrorMessage variant="danger">{error}</ErrorMessage>
+                  ) : filteredStudents.length === 0 ? (
+                    <div className="flex flex-col justify-center items-center h-64 bg-gray-50 p-6 rounded-md m-4">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                      </svg>
+                      <p className="text-gray-500 mt-4 text-center">
+                        {studentSearch
+                          ? `No students found matching "${studentSearch}".`
+                          : 'No students found in the database.'}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="table-container overflow-x-auto mb-8">
+                      <h3 className="text-lg font-semibold text-gray-700 mb-4">Select a Student to View Meetings</h3>
+                      <table className="w-full border-collapse">
+                        <thead>
+                          <tr className="bg-gray-50">
+                            <th className="text-left py-3 px-6 border-b border-gray-200 font-semibold text-gray-700">Student Name</th>
+                            <th className="text-left py-3 px-6 border-b border-gray-200 font-semibold text-gray-700">Email</th>
+                            <th className="text-left py-3 px-6 border-b border-gray-200 font-semibold text-gray-700">Assigned Guide</th>
+                            <th className="text-left py-3 px-6 border-b border-gray-200 font-semibold text-gray-700">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredStudents.map((student) => (
+                            <tr 
+                              key={`student-${student.id}`} 
+                              className="hover:bg-gray-50 cursor-pointer"
+                            >
+                              <td className="py-3 px-6 border-b border-gray-200">{student.name}</td>
+                              <td className="py-3 px-6 border-b border-gray-200">{student.email}</td>
+                              <td className="py-3 px-6 border-b border-gray-200">
+                                {student.guideName ? (
+                                  <div className="flex items-center">
+                                    <span className="w-2 h-2 mr-2 bg-green-500 rounded-full"></span>
+                                    <span>{student.guideName}</span>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center text-gray-500">
+                                    <span className="w-2 h-2 mr-2 bg-gray-300 rounded-full"></span>
+                                    <span>Not Assigned</span>
+                                  </div>
+                                )}
+                              </td>
+                              <td className="py-3 px-6 border-b border-gray-200">
+                                <button 
+                                  className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors duration-200"
+                                  onClick={() => handleViewMeetingDetails(student.id)}
+                                  title="View student meetings"
+                                >
+                                  <FaCalendarCheck className="inline mr-2" />
+                                  View Meetings
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      
+                      <div className="mt-4 text-sm text-gray-500">
+                        Showing {filteredStudents.length} of {students.length} students
+                        {studentSearch && ` (filtered by "${studentSearch}")`}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Meeting details modal/panel when a student is selected */}
+                  {viewingMeetingDetails && meetingDetails && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+                      <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] overflow-y-auto">
+                        <div className="p-6">
+                          <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-xl font-bold text-gray-800">Meetings for {meetingDetails.studentInfo.name}</h3>
+                            <button
+                              onClick={handleCloseMeetingDetails}
+                              className="text-gray-500 hover:text-gray-700"
+                            >
+                              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+                          
+                          {/* Student and Guide Information */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                            <div className="bg-gray-50 p-4 rounded-lg border">
+                              <h4 className="font-semibold text-gray-700 mb-2">Student Information</h4>
+                              <div className="text-sm text-gray-600 space-y-1">
+                                <p><span className="font-medium">Name:</span> {meetingDetails.studentInfo.name}</p>
+                                <p><span className="font-medium">Email:</span> {meetingDetails.studentInfo.email}</p>
+                                <p><span className="font-medium">Department:</span> {meetingDetails.studentInfo.department}</p>
+                                <p><span className="font-medium">Project:</span> {meetingDetails.studentInfo.projectTitle}</p>
+                              </div>
+                            </div>
+                            <div className="bg-gray-50 p-4 rounded-lg border">
+                              <h4 className="font-semibold text-gray-700 mb-2">Guide Information</h4>
+                              <div className="text-sm text-gray-600 space-y-1">
+                                <p><span className="font-medium">Name:</span> {meetingDetails.guideInfo.name}</p>
+                                <p><span className="font-medium">Email:</span> {meetingDetails.guideInfo.email}</p>
+                                <p><span className="font-medium">Department:</span> {meetingDetails.guideInfo.department}</p>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* Meetings Summary */}
+                          <div className="mb-6">
+                            <h4 className="font-semibold text-gray-700 mb-2">Meeting Statistics</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                              <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-lg border border-blue-200 shadow-sm">
+                                <p className="text-xs text-blue-700 uppercase font-semibold tracking-wider">Total Meetings</p>
+                                <p className="text-2xl font-bold text-blue-700 mt-1">
+                                  {meetingDetails.meetings.length}
+                                </p>
+                              </div>
+                              <div className="bg-gradient-to-br from-green-50 to-green-100 p-4 rounded-lg border border-green-200 shadow-sm">
+                                <p className="text-xs text-green-700 uppercase font-semibold tracking-wider">Completed</p>
+                                <p className="text-2xl font-bold text-green-700 mt-1">
+                                  {meetingDetails.meetings.filter(m => m.status.toLowerCase() === 'completed').length}
+                                </p>
+                              </div>
+                              <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 p-4 rounded-lg border border-yellow-200 shadow-sm">
+                                <p className="text-xs text-yellow-700 uppercase font-semibold tracking-wider">Upcoming</p>
+                                <p className="text-2xl font-bold text-yellow-700 mt-1">
+                                  {meetingDetails.meetings.filter(m => m.status.toLowerCase() === 'scheduled' || m.status.toLowerCase() === 'pending').length}
+                                </p>
+                              </div>
+                              <div className="bg-gradient-to-br from-red-50 to-red-100 p-4 rounded-lg border border-red-200 shadow-sm">
+                                <p className="text-xs text-red-700 uppercase font-semibold tracking-wider">Cancelled</p>
+                                <p className="text-2xl font-bold text-red-700 mt-1">
+                                  {meetingDetails.meetings.filter(m => m.status.toLowerCase() === 'cancelled').length}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* Meetings History */}
+                          <h4 className="font-semibold text-gray-700 mb-2">Meeting History</h4>
+                          {meetingDetails.meetings.length > 0 ? (
+                            <div className="overflow-x-auto">
+                              <table className="w-full border-collapse">
+                                <thead>
+                                  <tr className="bg-gray-50">
+                                    <th className="text-left py-3 px-6 border-b border-gray-200 font-semibold text-gray-700">Date & Time</th>
+                                    <th className="text-left py-3 px-6 border-b border-gray-200 font-semibold text-gray-700">Title</th>
+                                    <th className="text-left py-3 px-6 border-b border-gray-200 font-semibold text-gray-700">Duration</th>
+                                    <th className="text-left py-3 px-6 border-b border-gray-200 font-semibold text-gray-700">Status</th>
+                                    <th className="text-left py-3 px-6 border-b border-gray-200 font-semibold text-gray-700">Location</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {meetingDetails.meetings.map((meeting, index) => (
+                                    <tr key={`meeting-${meeting.id}`} className={`${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-indigo-50`}>
+                                      <td className="py-3 px-6 border-b border-gray-200">
+                                        {formatDate(meeting.date)}<br/>
+                                        <span className="text-xs text-gray-500">{meeting.startTime}</span>
+                                      </td>
+                                      <td className="py-3 px-6 border-b border-gray-200 font-medium">{meeting.title}</td>
+                                      <td className="py-3 px-6 border-b border-gray-200">{meeting.duration}</td>
+                                      <td className="py-3 px-6 border-b border-gray-200">
+                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
+                                          ${meeting.status.toLowerCase() === 'completed' ? 'bg-green-100 text-green-800 border border-green-200' : 
+                                            meeting.status.toLowerCase() === 'cancelled' ? 'bg-red-100 text-red-800 border border-red-200' : 
+                                            meeting.status.toLowerCase() === 'rescheduled' ? 'bg-yellow-100 text-yellow-800 border border-yellow-200' :
+                                            'bg-blue-100 text-blue-800 border border-blue-200'}`}>
+                                          {meeting.status}
+                                        </span>
+                                      </td>
+                                      <td className="py-3 px-6 border-b border-gray-200">{meeting.location}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          ) : (
+                            <div className="bg-gray-50 p-6 text-center rounded-md">
+                              <p className="text-gray-500">No meetings found for this student.</p>
+                            </div>
+                          )}
+                          
+                          {/* If there is a meeting, show details of the most recent one */}
+                          {meetingDetails.meetings.length > 0 && (
+                            <div className="mt-6 bg-indigo-50 p-4 rounded-lg border border-indigo-100">
+                              <h4 className="font-semibold text-gray-700 mb-2">Most Recent Meeting Details</h4>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                  <p className="text-sm text-gray-700"><span className="font-medium">Title:</span> {meetingDetails.meetings[0].title}</p>
+                                  <p className="text-sm text-gray-700"><span className="font-medium">Date:</span> {formatDate(meetingDetails.meetings[0].date)}</p>
+                                  <p className="text-sm text-gray-700"><span className="font-medium">Time:</span> {meetingDetails.meetings[0].startTime}</p>
+                                  <p className="text-sm text-gray-700"><span className="font-medium">Duration:</span> {meetingDetails.meetings[0].duration}</p>
+                                  <p className="text-sm text-gray-700"><span className="font-medium">Location:</span> {meetingDetails.meetings[0].location}</p>
+                                </div>
+                                <div>
+                                  <p className="text-sm text-gray-700 mb-2"><span className="font-medium">Agenda:</span></p>
+                                  <p className="text-sm text-gray-600 mb-4">{meetingDetails.meetings[0].agenda}</p>
+                                  
+                                  <p className="text-sm text-gray-700 mb-2"><span className="font-medium">Summary:</span></p>
+                                  <p className="text-sm text-gray-600">
+                                    {meetingDetails.meetings[0].summary || 'No summary available yet.'}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        <div className="p-4 bg-gray-50 border-t flex justify-end">
+                          <button
+                            onClick={handleCloseMeetingDetails}
+                            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors duration-200"
+                          >
+                            Close
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Loading indicator for meeting details */}
+                  {isLoadingMeetingDetails && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+                      <div className="bg-white p-8 rounded-lg shadow-xl flex flex-col items-center">
+                        <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-indigo-500"></div>
+                        <p className="mt-4 text-indigo-600 font-medium">Loading student meeting details...</p>
                       </div>
                     </div>
                   )}

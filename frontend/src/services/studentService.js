@@ -220,7 +220,7 @@ const getStudentGuide = async (token) => {
   setAuthToken(token);
   try {
     // First get the basic guide info (might only contain ID and email)
-    const response = await axios.get(`${API_URL}/students/guide`);
+  const response = await axios.get(`${API_URL}/students/guide`);
     console.log("Basic guide data from API:", response.data);
     
     if (response.data && response.data._id) {
@@ -236,7 +236,7 @@ const getStudentGuide = async (token) => {
       }
     }
     
-    return response.data;
+  return response.data;
   } catch (error) {
     console.error("Error fetching guide:", error);
     // Instead of throwing the error, return null to indicate no guide is assigned
