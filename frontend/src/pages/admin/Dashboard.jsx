@@ -1182,10 +1182,6 @@ const Dashboard = () => {
                                     <div>
                                       <div className="grid grid-cols-2 gap-4">
                                         <div>
-                                          <p className="text-sm text-gray-500">Meeting ID</p>
-                                          <p className="font-medium">{meeting._id}</p>
-                                        </div>
-                                        <div>
                                           <p className="text-sm text-gray-500">Meeting Type</p>
                                           <p className="font-medium">{meeting.meetingType}</p>
                                         </div>
@@ -1194,57 +1190,20 @@ const Dashboard = () => {
                                           <p className="font-medium">{formatDate(meeting.scheduledDate)}</p>
                                         </div>
                                         <div>
-                                          <p className="text-sm text-gray-500">Time</p>
-                                          <p className="font-medium">{meeting.startTime}</p>
-                                        </div>
-                                        <div>
                                           <p className="text-sm text-gray-500">Duration</p>
                                           <p className="font-medium">{meeting.duration}</p>
-                                        </div>
-                                        <div>
-                                          <p className="text-sm text-gray-500">Location</p>
-                                          <p className="font-medium">{meeting.location}</p>
-                                        </div>
-                                      </div>
-                                    </div>
-                                    
-                                    <div>
-                                      <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                          <p className="text-sm text-gray-500">Student ID</p>
-                                          <p className="font-medium">{typeof meeting.studentId === 'object' ? meeting.studentId._id : meeting.studentId}</p>
-                                        </div>
-                                        <div>
-                                          <p className="text-sm text-gray-500">Faculty ID</p>
-                                          <p className="font-medium">{typeof meeting.facultyId === 'object' ? meeting.facultyId._id : meeting.facultyId}</p>
-                                        </div>
-                                        <div>
-                                          <p className="text-sm text-gray-500">Project ID</p>
-                                          <p className="font-medium">{typeof meeting.projectId === 'object' ? meeting.projectId._id : meeting.projectId}</p>
-                                        </div>
-                                        {meeting.studentPoints !== null && (
-                                          <div>
-                                            <p className="text-sm text-gray-500">Student Points</p>
-                                            <p className="font-medium">{meeting.studentPoints} / 10</p>
-                                          </div>
-                                        )}
-                                        <div>
-                                          <p className="text-sm text-gray-500">Created At</p>
-                                          <p className="font-medium">{formatDate(meeting.createdAt)}</p>
-                                        </div>
-                                        <div>
-                                          <p className="text-sm text-gray-500">Updated At</p>
-                                          <p className="font-medium">{formatDate(meeting.updatedAt)}</p>
                                         </div>
                                       </div>
                                     </div>
                                   </div>
                                   
                                   <div className="mt-4 space-y-4">
-                                    <div>
-                                      <h6 className="text-sm font-semibold text-gray-700 mb-2">Agenda</h6>
-                                      <p className="text-gray-600 bg-gray-50 p-3 rounded-md">{meeting.agenda}</p>
-                                    </div>
+                                    {meeting.studentPoints !== null && meeting.studentPoints !== undefined && (
+                                      <div>
+                                        <h6 className="text-sm font-semibold text-gray-700 mb-2">Student Points</h6>
+                                        <p className="text-gray-600 bg-gray-50 p-3 rounded-md">{meeting.studentPoints} / 10</p>
+                                      </div>
+                                    )}
                                     
                                     {meeting.meetingSummary && (
                                       <div>
