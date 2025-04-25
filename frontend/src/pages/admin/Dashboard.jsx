@@ -1212,15 +1212,15 @@ const Dashboard = () => {
                                       <div className="grid grid-cols-2 gap-4">
                                         <div>
                                           <p className="text-sm text-gray-500">Student ID</p>
-                                          <p className="font-medium">{meeting.studentId}</p>
+                                          <p className="font-medium">{typeof meeting.studentId === 'object' ? meeting.studentId._id : meeting.studentId}</p>
                                         </div>
                                         <div>
                                           <p className="text-sm text-gray-500">Faculty ID</p>
-                                          <p className="font-medium">{meeting.facultyId}</p>
+                                          <p className="font-medium">{typeof meeting.facultyId === 'object' ? meeting.facultyId._id : meeting.facultyId}</p>
                                         </div>
                                         <div>
                                           <p className="text-sm text-gray-500">Project ID</p>
-                                          <p className="font-medium">{meeting.projectId}</p>
+                                          <p className="font-medium">{typeof meeting.projectId === 'object' ? meeting.projectId._id : meeting.projectId}</p>
                                         </div>
                                         {meeting.studentPoints !== null && (
                                           <div>

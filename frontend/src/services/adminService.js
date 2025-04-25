@@ -449,20 +449,13 @@ const getMeetingDetails = async (token, studentId) => {
       },
     };
     
-    console.log(`Fetching meeting details for student ID: ${studentId}`);
+    console.log(`Fetching data for student: ${studentId}`);
     
-    // Make real API call to fetch student info
+    // 1. Get student info
     const studentResponse = await axios.get(`${API_URL}/users/${studentId}`, config);
+    const student = studentResponse.data;
     
-    // Use the correct endpoint for fetching meetings by studentId
-    const meetingsResponse = await axios.get(`${API_URL}/meetings`, config);
-    
-    // Filter meetings for this specific student
-    const studentMeetings = meetingsResponse.data.filter(meeting => 
-      meeting.studentId === studentId
-    );
-    
-    // Get the guide info if the student has an assigned guide
+    // 2. Get guide info if available
     let guideInfo = {
       id: 'unassigned',
       name: 'Not Assigned',
@@ -470,58 +463,87 @@ const getMeetingDetails = async (token, studentId) => {
       email: 'N/A'
     };
     
-    if (studentResponse.data.assignedGuide) {
+    if (student.assignedGuide) {
       try {
-        const guideResponse = await axios.get(`${API_URL}/users/${studentResponse.data.assignedGuide}`, config);
+        const guideResponse = await axios.get(`${API_URL}/users/${student.assignedGuide}`, config);
         guideInfo = {
           id: guideResponse.data._id,
           name: guideResponse.data.fullName,
           department: guideResponse.data.department || 'Not Specified',
           email: guideResponse.data.email
         };
-      } catch (guideError) {
-        console.error('Error fetching guide information:', guideError.message);
+      } catch (error) {
+        console.error('Error fetching guide:', error.message);
       }
     }
     
-    // Format the response to match the expected structure
+    // 3. Get meetings directly using the meetings endpoint with a query param for studentId
+    console.log(`Fetching meetings for student ${studentId} from API`);
+    const meetingsResponse = await axios.get(`${API_URL}/meetings?studentId=${studentId}`, config);
+    
+    // Handle various response formats
+    let meetings = [];
+    if (meetingsResponse.data) {
+      if (Array.isArray(meetingsResponse.data)) {
+        meetings = meetingsResponse.data;
+      } else if (typeof meetingsResponse.data === 'object' && Array.isArray(meetingsResponse.data.data)) {
+        meetings = meetingsResponse.data.data;
+      }
+    }
+    
+    console.log(`Found ${meetings.length} meetings for student ${studentId}`);
+    
+    // If no meetings found with the direct query, try the alternative approach
+    if (meetings.length === 0) {
+      console.log('No meetings found with direct query, fetching all meetings to filter');
+      
+      try {
+        // Get all meetings and filter manually
+        const allMeetingsResponse = await axios.get(`${API_URL}/meetings`, config);
+        let allMeetings = Array.isArray(allMeetingsResponse.data) ? allMeetingsResponse.data : [];
+        
+        // Filter meetings where studentId matches (comparing as strings to avoid ObjectId issues)
+        meetings = allMeetings.filter(meeting => {
+          // Extract the ID, handling different possible formats
+          const meetingStudentId = 
+            (meeting.studentId && typeof meeting.studentId === 'object') ? meeting.studentId._id : 
+            (meeting.studentId) ? meeting.studentId : 
+            (meeting.student && typeof meeting.student === 'object') ? meeting.student._id : 
+            meeting.student;
+          
+          // Compare as strings to avoid ObjectId vs String comparison issues
+          return meetingStudentId && meetingStudentId.toString() === studentId.toString();
+        });
+        
+        console.log(`After manual filtering, found ${meetings.length} meetings for student ${studentId}`);
+      } catch (filterError) {
+        console.error('Error while trying to filter all meetings:', filterError.message);
+      }
+    }
+    
+    // Format the response
     const meetingDetails = {
       studentInfo: {
-        id: studentResponse.data._id,
-        name: studentResponse.data.fullName,
-        department: studentResponse.data.department || 'Not Specified',
-        email: studentResponse.data.email,
-        projectTitle: studentResponse.data.projectTitle || 'No Project Assigned'
+        id: student._id,
+        name: student.fullName,
+        department: student.department || 'Not Specified',
+        email: student.email,
+        projectTitle: student.projectTitle || 'No Project Assigned'
       },
       guideInfo: guideInfo,
-      meetings: studentMeetings.map(meeting => ({
-        _id: meeting._id,
-        meetingNumber: meeting.meetingNumber || 1,
-        title: meeting.title,
-        scheduledDate: meeting.scheduledDate,
-        startTime: meeting.startTime,
-        duration: meeting.duration,
-        status: meeting.status,
-        location: meeting.location || 'Not specified',
-        agenda: meeting.agenda || 'No agenda provided',
-        studentId: meeting.studentId,
-        facultyId: meeting.facultyId,
-        projectId: meeting.projectId,
-        studentPoints: meeting.studentPoints,
-        meetingSummary: meeting.meetingSummary,
-        guideRemarks: meeting.guideRemarks,
-        meetingType: meeting.meetingType,
-        createdAt: meeting.createdAt,
-        updatedAt: meeting.updatedAt
-      }))
+      meetings: meetings
     };
-    
-    // Sort meetings by date (most recent first)
-    meetingDetails.meetings.sort((a, b) => new Date(b.scheduledDate || b.createdAt) - new Date(a.scheduledDate || a.createdAt));
     
     return { success: true, data: meetingDetails };
   } catch (error) {
-    console.error(`Error fetching meeting details for student ID ${studentId}:`, error.message);
+    console.error(`Error fetching meetings: ${error.message}`);
+    
+    // Provide helpful error information
+    if (error.response) {
+      console.error('API Response Data:', error.response.data);
+      console.error('API Response Status:', error.response.status);
+    }
+    
     throw error;
   }
 };
