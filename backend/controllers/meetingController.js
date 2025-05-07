@@ -284,6 +284,8 @@ exports.updateStudentPoints = async (req, res) => {
 // @access  Private/HOD
 exports.getDepartmentMeetings = async (req, res) => {
     try {
+        console.log('Getting department meetings for HOD:', req.user._id);
+        
         // Only HODs can access this route
         if (req.user.role !== 'hod') {
             return res.status(403).json({ 
@@ -299,6 +301,8 @@ exports.getDepartmentMeetings = async (req, res) => {
             });
         }
 
+        console.log('Fetching meetings for department:', hodDepartment);
+
         // Find faculty in the HOD's department
         const facultyInDepartment = await User.find({ 
             role: 'faculty',
@@ -307,6 +311,14 @@ exports.getDepartmentMeetings = async (req, res) => {
                 { branch: hodDepartment }
             ]
         }).select('_id');
+
+        console.log(`Found ${facultyInDepartment.length} faculty members in department`);
+        
+        if (facultyInDepartment.length === 0) {
+            // Return empty array if no faculty found (to avoid query error)
+            console.log('No faculty found in department, returning empty array');
+            return res.json([]);
+        }
 
         const facultyIds = facultyInDepartment.map(faculty => faculty._id);
 
@@ -319,11 +331,12 @@ exports.getDepartmentMeetings = async (req, res) => {
         .populate('projectId', 'title')
         .sort({ scheduledDate: -1 });
 
+        console.log(`Found ${meetings.length} meetings for department ${hodDepartment}`);
         res.json(meetings);
     } catch (error) {
         console.error('Error fetching department meetings:', error);
         res.status(500).json({ 
-            message: 'Server error', 
+            message: 'Error fetching department meetings', 
             error: error.message 
         });
     }
