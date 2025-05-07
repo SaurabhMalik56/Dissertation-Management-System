@@ -136,46 +136,17 @@ const Meetings = () => {
       setError(null);
       setMeetingDetails(null); // Clear previous meeting data
       
-      // Find student in our existing students array first
-      const studentFromList = students.find(s => s.id === studentId);
-      let studentDetails = null;
-      
-      try {
-        // Attempt to fetch full student details
-        console.log('Fetching student details for ID:', studentId);
-        studentDetails = await hodService.getStudentDetails(user.token, studentId);
-        console.log('Successfully fetched student details:', studentDetails);
-      } catch (studentErr) {
-        console.error(`Error fetching student details for ID ${studentId}:`, studentErr);
-        
-        // If we have some basic details from the list, use those instead
-        if (studentFromList) {
-          console.log('Using basic student info from student list:', studentFromList);
-          studentDetails = {
-            _id: studentFromList.id,
-            fullName: studentFromList.name,
-            name: studentFromList.name,
-            email: studentFromList.email,
-            department: studentFromList.department
-          };
-          toast.warning('Detailed student information unavailable. Using basic information instead.');
-        } else {
-          // We have no information about this student
-          throw new Error('Unable to retrieve student information. You may not have permission to view this student.');
-        }
-      }
-      
       // Show the meeting details modal right away with loading state
       setViewingMeetingDetails(true);
       
-      // Format the initial response to show while meetings are loading
-      const initialMeetingDetails = {
+      // Set initial loading state
+      const initialLoadingDetails = {
         studentInfo: {
-          id: studentDetails._id,
-          name: studentDetails.fullName || studentDetails.name,
-          department: studentDetails.department || 'Not Specified',
-          email: studentDetails.email,
-          projectTitle: studentDetails.projectTitle || 'No Project Assigned'
+          id: studentId,
+          name: 'Loading...',
+          department: 'Loading...',
+          email: 'Loading...',
+          projectTitle: 'Loading...'
         },
         guideInfo: {
           id: 'loading',
@@ -186,14 +157,105 @@ const Meetings = () => {
         meetings: []
       };
       
-      setMeetingDetails(initialMeetingDetails);
+      setMeetingDetails(initialLoadingDetails);
       
-      // Fetch meetings directly from the new API endpoint
+      // Step 1: Fetch complete student information directly from the database
+      console.log('Fetching complete student details for ID:', studentId);
+      let studentData = null;
+      try {
+        // Use the populated query to get all related data in one request
+        studentData = await hodService.getStudentDetails(user.token, studentId);
+        console.log('Successfully fetched student data from DB:', studentData);
+        
+        if (!studentData) {
+          throw new Error('Failed to retrieve student data');
+        }
+      } catch (studentErr) {
+        console.error(`Error fetching student details for ID ${studentId}:`, studentErr);
+        
+        // If we can't get student details, use basic info from students array
+        const studentFromList = students.find(s => s.id === studentId);
+        if (studentFromList) {
+          console.log('Using basic student info from student list:', studentFromList);
+          studentData = {
+            _id: studentFromList.id,
+            fullName: studentFromList.name,
+            name: studentFromList.name,
+            email: studentFromList.email,
+            department: studentFromList.department
+          };
+          toast.warning('Could not fetch detailed student information. Using basic information instead.');
+        } else {
+          toast.error('Could not retrieve student information');
+          setIsLoadingMeetingDetails(false);
+          setViewingMeetingDetails(false);
+          return;
+        }
+      }
+      
+      // Step 2: Format student information 
+      const studentInfo = {
+        id: studentData._id,
+        name: studentData.fullName || studentData.name,
+        department: studentData.department || studentData.branch || 'Not Specified',
+        email: studentData.email,
+        projectTitle: studentData.project?.title || studentData.projectTitle || 'No Project Assigned'
+      };
+      
+      // Step 3: Extract guide information from the populated student data
+      let guideInfo = {
+        id: 'unassigned',
+        name: 'Not Assigned',
+        department: 'N/A',
+        email: 'N/A'
+      };
+      
+      if (studentData.assignedGuide) {
+        try {
+          // If guide is already populated as an object
+          if (typeof studentData.assignedGuide === 'object' && studentData.assignedGuide !== null) {
+            console.log('Guide details already populated in student data:', studentData.assignedGuide);
+            const guide = studentData.assignedGuide;
+            guideInfo = {
+              id: guide._id,
+              name: guide.fullName || guide.name || 'Unknown',
+              department: guide.department || guide.branch || 'Not Specified',
+              email: guide.email || 'N/A'
+            };
+          } else {
+            // Fetch guide details separately
+            const guideId = studentData.assignedGuide;
+            console.log('Fetching guide details for ID:', guideId);
+            const guideData = await hodService.getFacultyDetails(user.token, guideId);
+            
+            if (guideData) {
+              guideInfo = {
+                id: guideData._id,
+                name: guideData.fullName || guideData.name || 'Unknown',
+                department: guideData.department || guideData.branch || 'Not Specified',
+                email: guideData.email || 'N/A'
+              };
+            }
+          }
+        } catch (guideErr) {
+          console.error('Error fetching guide details:', guideErr);
+          toast.warning('Guide information unavailable.');
+        }
+      }
+      
+      // Update the modal with student and guide information, but still show loading for meetings
+      setMeetingDetails({
+        studentInfo: studentInfo,
+        guideInfo: guideInfo,
+        meetings: [] // Still loading meetings
+      });
+      
+      // Step 4: Fetch meetings for this specific student
       let studentMeetings = [];
       try {
-        console.log('Fetching meetings directly for student ID:', studentId);
+        console.log('Fetching meetings directly from API for student ID:', studentId);
         
-        // Make direct API call to get meetings for this specific student
+        // Use the dedicated endpoint for student meetings
         const response = await axios.get(
           `${API_URL}/meetings/student/${studentId}`,
           { headers: { Authorization: `Bearer ${user.token}` } }
@@ -202,94 +264,56 @@ const Meetings = () => {
         if (response.data && Array.isArray(response.data)) {
           studentMeetings = response.data;
           console.log(`Successfully fetched ${studentMeetings.length} meetings for student ${studentId}`);
-          
-          if (studentMeetings.length === 0) {
-            console.log('No meetings found for this student');
-            toast.info('No meetings found for this student');
-          }
         } else {
-          console.warn('Invalid response from meetings API');
-          toast.warning('Unable to parse meetings data from server');
+          console.warn('Invalid response format from meetings API');
+          toast.warning('Unable to retrieve meeting data in the expected format');
         }
-      } catch (meetingError) {
-        console.error('Error fetching student meetings:', meetingError);
+      } catch (meetingErr) {
+        console.error('Error fetching student meetings:', meetingErr);
         
-        // Show specific message for server errors
-        if (meetingError.response && meetingError.response.status === 500) {
-          toast.error(
-            <div>
-              Server error while fetching meetings. 
-              <button 
-                className="ml-2 px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
-                onClick={() => {
-                  toast.dismiss();
-                  fetchMeetingDetails(studentId);
-                }}
-              >
-                Retry
-              </button>
-            </div>,
-            { autoClose: false }
-          );
-        } else if (meetingError.response && meetingError.response.status === 404) {
-          toast.warning('No meetings found for this student');
-        } else {
-          toast.error(`Failed to fetch meetings: ${meetingError.response?.data?.message || 'Unknown error'}`);
-        }
-      }
-      
-      // Get guide details if available
-      let guideInfo = {
-        id: 'unassigned',
-        name: 'Not Assigned',
-        department: 'N/A',
-        email: 'N/A'
-      };
-      
-      if (studentDetails.assignedGuide) {
-        try {
-          const guideId = typeof studentDetails.assignedGuide === 'object' ? 
-            studentDetails.assignedGuide._id : 
-            studentDetails.assignedGuide;
-          
-          console.log('Fetching guide details for ID:', guideId);
-          
-          // Try to fetch faculty details directly
-          const guideDetails = await hodService.getFacultyDetails(user.token, guideId);
-          
-          if (guideDetails) {
-            guideInfo = {
-              id: guideDetails._id,
-              name: guideDetails.fullName || guideDetails.name || 'Unknown Guide',
-              department: guideDetails.department || guideDetails.branch || 'Not Specified',
-              email: guideDetails.email || 'N/A'
-            };
+        // Show specific message for different error types
+        if (meetingErr.response) {
+          if (meetingErr.response.status === 500) {
+            toast.error(
+              <div>
+                Server error while fetching meetings. 
+                <button 
+                  className="ml-2 px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+                  onClick={() => {
+                    toast.dismiss();
+                    fetchMeetingDetails(studentId);
+                  }}
+                >
+                  Retry
+                </button>
+              </div>,
+              { autoClose: false }
+            );
+          } else if (meetingErr.response.status === 404) {
+            toast.info('No meetings found for this student');
+          } else {
+            toast.error(`Failed to fetch meetings: ${meetingErr.response.data?.message || 'Unknown error'}`);
           }
-        } catch (guideErr) {
-          console.error(`Error fetching guide details:`, guideErr);
-          toast.warning('Guide information unavailable.');
+        } else {
+          toast.error('Network error while fetching meetings');
         }
       }
       
-      // Format the final response with the meetings from the direct API call
-      const formattedMeetingDetails = {
-        studentInfo: {
-          id: studentDetails._id,
-          name: studentDetails.fullName || studentDetails.name,
-          department: studentDetails.department || 'Not Specified',
-          email: studentDetails.email,
-          projectTitle: studentDetails.projectTitle || 'No Project Assigned'
-        },
+      // Step 5: Update the UI with all the gathered information
+      const finalMeetingDetails = {
+        studentInfo: studentInfo,
         guideInfo: guideInfo,
         meetings: studentMeetings
       };
       
-      setMeetingDetails(formattedMeetingDetails);
+      console.log('Setting final meeting details:', finalMeetingDetails);
+      setMeetingDetails(finalMeetingDetails);
+      
     } catch (err) {
-      console.error('Error fetching meeting details:', err);
+      console.error('Error in fetchMeetingDetails process:', err);
       const errorMessage = err.response?.data?.message || err.message || 'Unknown error occurred';
       setError(`Failed to load meeting details: ${errorMessage}`);
-      toast.error(`Unable to fetch meeting details: ${errorMessage}`);
+      toast.error(`Unable to fetch details: ${errorMessage}`);
       
       // Close the modal if there's an error
       setViewingMeetingDetails(false);

@@ -731,73 +731,92 @@ const updateProfile = async (token, profileData) => {
   }
 };
 
-// Get details for a specific student
+// Get detailed information about a specific student including their project and guide
 const getStudentDetails = async (token, studentId) => {
   try {
-    if (!studentId) {
-      throw new Error('Student ID is required');
+    if (!token) {
+      throw new Error('No authentication token provided');
     }
     
-    // First try to find student in cache to avoid unnecessary API calls
-    if (cache.studentData) {
-      const cachedStudent = cache.studentData.find(s => s._id === studentId);
-      if (cachedStudent) {
-        console.log(`Using cached data for student ${studentId}`);
-        return cachedStudent;
-      }
-    }
+    console.log(`Fetching detailed information for student ID: ${studentId}`);
     
-    console.log(`Fetching details for student: ${studentId}`);
+    // Make a direct call to get the student details with populated fields
     const response = await axios.get(
-      `${API_URL}/users/${studentId}`,
+      `${API_URL}/users/${studentId}?populate=true`, 
       createAuthHeader(token)
     );
     
-    return response.data;
+    const studentData = response.data;
+    console.log('Received student data:', studentData);
+    
+    // If no project is assigned, try to get guide information separately
+    if (!studentData.project && studentData.assignedGuide) {
+      try {
+        console.log(`Fetching guide details separately for guide ID: ${studentData.assignedGuide}`);
+        const guideResponse = await axios.get(
+          `${API_URL}/users/${studentData.assignedGuide}`,
+          createAuthHeader(token)
+        );
+        
+        if (guideResponse.data) {
+          studentData.assignedGuide = guideResponse.data;
+          console.log('Successfully fetched and attached guide data');
+        }
+      } catch (guideError) {
+        console.error('Error fetching guide details:', guideError);
+      }
+    }
+    
+    return studentData;
   } catch (error) {
     console.error(`Error fetching student details for ID ${studentId}:`, error);
     
-    // If it's a 403 error (permission issue), check if we have basic data in cache
-    if (error.response && error.response.status === 403 && cache.studentData) {
-      const basicStudentInfo = cache.studentData.find(s => s._id === studentId);
-      if (basicStudentInfo) {
-        console.log(`Using basic cached data for student ${studentId} due to permission issue`);
-        return basicStudentInfo;
-      }
+    // If there's a 404, the student might not exist
+    if (error.response && error.response.status === 404) {
+      throw new Error(`Student with ID ${studentId} not found`);
     }
     
-    // Re-throw the error to be handled by the calling function
-    throw error;
+    // Check for other HTTP error responses
+    const errorMessage = error.response?.data?.message || error.message || 'Failed to fetch student details';
+    throw new Error(errorMessage);
   }
 };
 
-// Get details for a specific faculty member
+// Get detailed information about a specific faculty member
 const getFacultyDetails = async (token, facultyId) => {
   try {
-    if (!facultyId) {
-      throw new Error('Faculty ID is required');
+    if (!token) {
+      throw new Error('No authentication token provided');
     }
     
-    // First try to find faculty in cache to avoid unnecessary API calls
-    if (cache.facultyData) {
-      const cachedFaculty = cache.facultyData.find(f => f._id === facultyId);
-      if (cachedFaculty) {
-        console.log(`Using cached data for faculty ${facultyId}`);
-        return cachedFaculty;
-      }
-    }
+    console.log(`Fetching detailed information for faculty ID: ${facultyId}`);
     
-    // If not in cache, fetch from API
-    console.log(`Fetching details for faculty: ${facultyId}`);
+    // Make a direct call to get the faculty details with populated fields
     const response = await axios.get(
-      `${API_URL}/users/${facultyId}`,
+      `${API_URL}/users/${facultyId}?populate=true`, 
       createAuthHeader(token)
     );
     
-    return response.data;
+    const facultyData = response.data;
+    console.log('Received faculty data:', facultyData);
+    
+    // Additional processing if needed
+    if (facultyData.assignedStudents && !Array.isArray(facultyData.assignedStudents)) {
+      facultyData.assignedStudents = [];
+    }
+    
+    return facultyData;
   } catch (error) {
     console.error(`Error fetching faculty details for ID ${facultyId}:`, error);
-    throw error;
+    
+    // If there's a 404, the faculty might not exist
+    if (error.response && error.response.status === 404) {
+      throw new Error(`Faculty with ID ${facultyId} not found`);
+    }
+    
+    // Check for other HTTP error responses
+    const errorMessage = error.response?.data?.message || error.message || 'Failed to fetch faculty details';
+    throw new Error(errorMessage);
   }
 };
 
