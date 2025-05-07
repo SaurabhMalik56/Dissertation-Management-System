@@ -159,147 +159,169 @@ const Meetings = () => {
       
       setMeetingDetails(initialLoadingDetails);
       
-      // Step 1: Fetch complete student information directly from the database
-      console.log('Fetching complete student details for ID:', studentId);
-      let studentData = null;
+      // STEP 1: First fetch the meetings for this student
+      // This helps us extract both student and guide information
+      console.log('Fetching meetings for student ID:', studentId);
+      let studentMeetings = [];
+      
       try {
-        // Use the populated query to get all related data in one request
-        studentData = await hodService.getStudentDetails(user.token, studentId);
-        console.log('Successfully fetched student data from DB:', studentData);
+        // Fetch department meetings and filter by student (don't use student-specific endpoint)
+        const meetingsResponse = await axios.get(
+          `${API_URL}/meetings/department`,
+          { headers: { Authorization: `Bearer ${user.token}` } }
+        );
         
-        if (!studentData) {
-          throw new Error('Failed to retrieve student data');
-        }
-      } catch (studentErr) {
-        console.error(`Error fetching student details for ID ${studentId}:`, studentErr);
-        
-        // If we can't get student details, use basic info from students array
-        const studentFromList = students.find(s => s.id === studentId);
-        if (studentFromList) {
-          console.log('Using basic student info from student list:', studentFromList);
-          studentData = {
-            _id: studentFromList.id,
-            fullName: studentFromList.name,
-            name: studentFromList.name,
-            email: studentFromList.email,
-            department: studentFromList.department
-          };
-          toast.warning('Could not fetch detailed student information. Using basic information instead.');
+        if (meetingsResponse.data && Array.isArray(meetingsResponse.data)) {
+          // Filter meetings for this specific student
+          studentMeetings = meetingsResponse.data.filter(meeting => {
+            const meetingStudentId = meeting.studentId?._id || meeting.studentId;
+            return meetingStudentId === studentId;
+          });
+          
+          console.log(`Found ${studentMeetings.length} meetings for student ${studentId}`);
         } else {
-          toast.error('Could not retrieve student information');
-          setIsLoadingMeetingDetails(false);
-          setViewingMeetingDetails(false);
-          return;
+          console.warn('Invalid response format from meetings API');
+        }
+      } catch (meetingErr) {
+        console.error('Error fetching meetings:', meetingErr);
+        // Continue with empty meetings array
+        studentMeetings = [];
+      }
+      
+      // STEP 2: Extract basic student info from our existing list or from meetings
+      let studentInfo = null;
+      
+      // Try to get student info from the student list first
+      const studentFromList = students.find(s => s.id === studentId);
+      if (studentFromList) {
+        console.log('Using student info from student list:', studentFromList);
+        studentInfo = {
+          id: studentFromList.id,
+          name: studentFromList.name,
+          email: studentFromList.email,
+          department: studentFromList.department || user.department,
+          projectTitle: 'No Project Assigned',
+          enrollment: 'N/A',
+          semester: 'N/A',
+          branch: studentFromList.department || user.department
+        };
+      }
+      
+      // Enhance student info from meetings if available
+      if (studentMeetings.length > 0 && studentMeetings[0].studentId && typeof studentMeetings[0].studentId === 'object') {
+        const studentFromMeeting = studentMeetings[0].studentId;
+        console.log('Enhancing student info from meeting data:', studentFromMeeting);
+        
+        studentInfo = {
+          ...studentInfo,
+          id: studentFromMeeting._id || studentInfo.id,
+          name: studentFromMeeting.fullName || studentFromMeeting.name || studentInfo.name,
+          email: studentFromMeeting.email || studentInfo.email,
+          department: studentFromMeeting.department || studentFromMeeting.branch || studentInfo.department
+        };
+      }
+      
+      // If we still don't have student info, try one more database fetch (without populate)
+      if (!studentInfo) {
+        try {
+          console.log('Fetching basic student data from API');
+          const studentResponse = await axios.get(
+            `${API_URL}/users/students/${studentId}`,
+            { headers: { Authorization: `Bearer ${user.token}` } }
+          );
+          
+          if (studentResponse.data) {
+            const basicStudentData = studentResponse.data;
+            studentInfo = {
+              id: basicStudentData._id,
+              name: basicStudentData.fullName || basicStudentData.name,
+              email: basicStudentData.email,
+              department: basicStudentData.department || basicStudentData.branch || user.department,
+              projectTitle: 'No Project Assigned',
+              enrollment: basicStudentData.enrollmentNumber || basicStudentData.regNumber || 'N/A',
+              semester: basicStudentData.semester || 'N/A',
+              branch: basicStudentData.branch || basicStudentData.department || user.department
+            };
+          }
+        } catch (studentErr) {
+          console.error('Error fetching student data:', studentErr);
+          // If we have absolutely no student info, use placeholder
+          if (!studentInfo) {
+            studentInfo = {
+              id: studentId,
+              name: 'Unknown Student',
+              email: 'N/A',
+              department: user.department,
+              projectTitle: 'No Project Assigned',
+              enrollment: 'N/A',
+              semester: 'N/A',
+              branch: user.department
+            };
+            toast.error('Unable to fetch student information');
+          }
         }
       }
       
-      // Step 2: Format student information 
-      const studentInfo = {
-        id: studentData._id,
-        name: studentData.fullName || studentData.name,
-        department: studentData.department || studentData.branch || 'Not Specified',
-        email: studentData.email,
-        projectTitle: studentData.project?.title || studentData.projectTitle || 'No Project Assigned'
-      };
-      
-      // Step 3: Extract guide information from the populated student data
+      // STEP 3: Extract guide information from meetings if available
       let guideInfo = {
         id: 'unassigned',
         name: 'Not Assigned',
         department: 'N/A',
-        email: 'N/A'
+        email: 'N/A',
+        phone: 'N/A',
+        specialization: 'N/A',
+        designation: 'Faculty'
       };
       
-      if (studentData.assignedGuide) {
-        try {
-          // If guide is already populated as an object
-          if (typeof studentData.assignedGuide === 'object' && studentData.assignedGuide !== null) {
-            console.log('Guide details already populated in student data:', studentData.assignedGuide);
-            const guide = studentData.assignedGuide;
-            guideInfo = {
-              id: guide._id,
-              name: guide.fullName || guide.name || 'Unknown',
-              department: guide.department || guide.branch || 'Not Specified',
-              email: guide.email || 'N/A'
-            };
-          } else {
-            // Fetch guide details separately
-            const guideId = studentData.assignedGuide;
-            console.log('Fetching guide details for ID:', guideId);
-            const guideData = await hodService.getFacultyDetails(user.token, guideId);
-            
-            if (guideData) {
-              guideInfo = {
-                id: guideData._id,
-                name: guideData.fullName || guideData.name || 'Unknown',
-                department: guideData.department || guideData.branch || 'Not Specified',
-                email: guideData.email || 'N/A'
-              };
-            }
-          }
-        } catch (guideErr) {
-          console.error('Error fetching guide details:', guideErr);
-          toast.warning('Guide information unavailable.');
-        }
-      }
-      
-      // Update the modal with student and guide information, but still show loading for meetings
-      setMeetingDetails({
-        studentInfo: studentInfo,
-        guideInfo: guideInfo,
-        meetings: [] // Still loading meetings
-      });
-      
-      // Step 4: Fetch meetings for this specific student
-      let studentMeetings = [];
-      try {
-        console.log('Fetching meetings directly from API for student ID:', studentId);
-        
-        // Use the dedicated endpoint for student meetings
-        const response = await axios.get(
-          `${API_URL}/meetings/student/${studentId}`,
-          { headers: { Authorization: `Bearer ${user.token}` } }
+      // Try to find guide information in meetings
+      if (studentMeetings.length > 0) {
+        // Find first meeting with populated faculty info
+        const meetingWithGuide = studentMeetings.find(m => 
+          m.facultyId && typeof m.facultyId === 'object' && m.facultyId !== null
         );
         
-        if (response.data && Array.isArray(response.data)) {
-          studentMeetings = response.data;
-          console.log(`Successfully fetched ${studentMeetings.length} meetings for student ${studentId}`);
-        } else {
-          console.warn('Invalid response format from meetings API');
-          toast.warning('Unable to retrieve meeting data in the expected format');
-        }
-      } catch (meetingErr) {
-        console.error('Error fetching student meetings:', meetingErr);
-        
-        // Show specific message for different error types
-        if (meetingErr.response) {
-          if (meetingErr.response.status === 500) {
-            toast.error(
-              <div>
-                Server error while fetching meetings. 
-                <button 
-                  className="ml-2 px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
-                  onClick={() => {
-                    toast.dismiss();
-                    fetchMeetingDetails(studentId);
-                  }}
-                >
-                  Retry
-                </button>
-              </div>,
-              { autoClose: false }
-            );
-          } else if (meetingErr.response.status === 404) {
-            toast.info('No meetings found for this student');
-          } else {
-            toast.error(`Failed to fetch meetings: ${meetingErr.response.data?.message || 'Unknown error'}`);
+        if (meetingWithGuide && meetingWithGuide.facultyId) {
+          const extractedGuide = meetingWithGuide.facultyId;
+          console.log('Extracted guide information from meetings:', extractedGuide);
+          
+          guideInfo = {
+            id: extractedGuide._id,
+            name: extractedGuide.fullName || extractedGuide.name || 'Unknown',
+            department: extractedGuide.department || extractedGuide.branch || 'Not Specified',
+            email: extractedGuide.email || 'N/A',
+            phone: extractedGuide.phone || extractedGuide.contactNumber || 'N/A',
+            specialization: extractedGuide.specialization || extractedGuide.expertise || 'Not Specified',
+            designation: extractedGuide.designation || extractedGuide.role || 'Faculty',
+            note: 'Information extracted from meeting data'
+          };
+        } else if (studentMeetings[0].facultyId) {
+          // If we have a guide ID but not the details, try to find them in department faculty
+          const guideId = studentMeetings[0].facultyId;
+          try {
+            console.log('Looking for guide in department faculty list');
+            const departmentFaculty = await hodService.getDepartmentFaculty(user.token, user.department);
+            const foundGuide = departmentFaculty.find(f => f._id === guideId);
+            
+            if (foundGuide) {
+              console.log('Found guide in department faculty list:', foundGuide);
+              guideInfo = {
+                id: foundGuide._id,
+                name: foundGuide.fullName || foundGuide.name || 'Unknown',
+                department: foundGuide.department || foundGuide.branch || 'Not Specified',
+                email: foundGuide.email || 'N/A',
+                phone: foundGuide.phone || foundGuide.contactNumber || 'N/A',
+                specialization: foundGuide.specialization || foundGuide.expertise || 'Not Specified',
+                designation: foundGuide.designation || foundGuide.role || 'Faculty',
+                note: 'Information from department faculty list'
+              };
+            }
+          } catch (facultyErr) {
+            console.error('Error finding guide in faculty list:', facultyErr);
           }
-        } else {
-          toast.error('Network error while fetching meetings');
         }
       }
       
-      // Step 5: Update the UI with all the gathered information
+      // STEP 4: Update the UI with the collected information
       const finalMeetingDetails = {
         studentInfo: studentInfo,
         guideInfo: guideInfo,
@@ -500,6 +522,12 @@ const Meetings = () => {
                               <p><span className="font-medium">Name:</span> {meetingDetails.studentInfo.name}</p>
                               <p><span className="font-medium">Email:</span> {meetingDetails.studentInfo.email}</p>
                               <p><span className="font-medium">Department:</span> {meetingDetails.studentInfo.department}</p>
+                              {meetingDetails.studentInfo.enrollment && (
+                                <p><span className="font-medium">Enrollment:</span> {meetingDetails.studentInfo.enrollment}</p>
+                              )}
+                              {meetingDetails.studentInfo.semester && meetingDetails.studentInfo.semester !== 'N/A' && (
+                                <p><span className="font-medium">Semester:</span> {meetingDetails.studentInfo.semester}</p>
+                              )}
                               <p><span className="font-medium">Project:</span> {meetingDetails.studentInfo.projectTitle}</p>
                             </div>
                           </div>
@@ -509,6 +537,21 @@ const Meetings = () => {
                               <p><span className="font-medium">Name:</span> {meetingDetails.guideInfo.name}</p>
                               <p><span className="font-medium">Email:</span> {meetingDetails.guideInfo.email}</p>
                               <p><span className="font-medium">Department:</span> {meetingDetails.guideInfo.department}</p>
+                              {meetingDetails.guideInfo.designation && meetingDetails.guideInfo.designation !== 'Faculty' && (
+                                <p><span className="font-medium">Designation:</span> {meetingDetails.guideInfo.designation}</p>
+                              )}
+                              {meetingDetails.guideInfo.phone && meetingDetails.guideInfo.phone !== 'N/A' && (
+                                <p><span className="font-medium">Contact:</span> {meetingDetails.guideInfo.phone}</p>
+                              )}
+                              {meetingDetails.guideInfo.specialization && meetingDetails.guideInfo.specialization !== 'N/A' && (
+                                <p><span className="font-medium">Specialization:</span> {meetingDetails.guideInfo.specialization}</p>
+                              )}
+                              {meetingDetails.guideInfo.id === 'unassigned' && (
+                                <p className="mt-2 text-amber-600">No guide has been assigned to this student yet.</p>
+                              )}
+                              {meetingDetails.guideInfo.note && (
+                                <p className="mt-2 text-blue-600 italic text-xs">{meetingDetails.guideInfo.note}</p>
+                              )}
                             </div>
                           </div>
                         </div>
