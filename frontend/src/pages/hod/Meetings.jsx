@@ -447,9 +447,6 @@ const Meetings = () => {
                               Email
                             </th>
                             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Meeting Count
-                            </th>
-                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Meetings
                             </th>
                           </tr>
@@ -463,25 +460,16 @@ const Meetings = () => {
                               <td className="px-6 py-4 whitespace-nowrap">
                                 <div className="text-sm text-gray-500">{student.email}</div>
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="text-sm text-gray-500">
-                                  {student.meetingsCount > 0 
-                                    ? `${student.meetingsCount} ${student.meetingsCount === 1 ? 'meeting' : 'meetings'}`
-                                    : 'No meetings'}
-                                </div>
-                              </td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                 <button 
                                   onClick={() => handleViewMeetingDetails(student.id)}
-                                  title={student.meetingsCount > 0 ? "View student meetings" : "No meetings found, but you can view student details"}
+                                  title="View student meetings and details"
                                   className="inline-flex items-center px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 transition-colors duration-200"
                                 >
                                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
                                     <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
                                   </svg>
-                                  {student.meetingsCount > 0 
-                                    ? `View Meetings (${student.meetingsCount})` 
-                                    : "View Details"}
+                                  View Meetings
                                 </button>
                               </td>
                             </tr>
