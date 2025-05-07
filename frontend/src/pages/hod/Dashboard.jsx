@@ -14,6 +14,7 @@ import {
   Bars3Icon,
   XMarkIcon
 } from '@heroicons/react/24/outline';
+import axios from 'axios';
 
 const Dashboard = () => {
   const {
@@ -48,6 +49,7 @@ const Dashboard = () => {
   const [studentSearch, setStudentSearch] = useState('');
   const [filteredGuides, setFilteredGuides] = useState([]);
   const [viewProjectModalOpen, setViewProjectModalOpen] = useState(false);
+  const [studentCount, setStudentCount] = useState(0);
 
   useEffect(() => {
     if (!user) return;
@@ -67,6 +69,52 @@ const Dashboard = () => {
     
     loadData();
   }, [user, projects.length, pendingProjects.length]);
+
+  // Fetch total student count when component mounts
+  useEffect(() => {
+    if (!user || !user.token || !user.department) {
+      console.log('Missing user data for student count:', { 
+        hasUser: !!user, 
+        hasToken: !!(user?.token), 
+        department: user?.department 
+      });
+      return;
+    }
+    
+    const fetchStudentCount = async () => {
+      try {
+        console.log('Fetching student count for department:', user.department);
+        // Use import.meta.env for Vite projects or fallback to hardcoded value
+        const API_BASE = import.meta.env?.VITE_API_URL || 'http://localhost:5000/api';
+        console.log('API Base URL:', API_BASE);
+        
+        const apiUrl = `${API_BASE}/users/students?branch=${encodeURIComponent(user.department)}`;
+        console.log('API URL:', apiUrl);
+        
+        // Using axios instead of fetch
+        const response = await axios.get(apiUrl, {
+          headers: {
+            'Authorization': `Bearer ${user.token}`
+          }
+        });
+        
+        console.log('API Response:', response);
+        
+        if (response.data && Array.isArray(response.data)) {
+          console.log(`Found ${response.data.length} students in department ${user.department}:`, response.data);
+          setStudentCount(response.data.length);
+        } else {
+          console.error('Unexpected API response format:', response.data);
+          toast.error('Unable to get student count: Unexpected response format');
+        }
+      } catch (error) {
+        console.error('Error fetching student count:', error);
+        toast.error(`Unable to get student count: ${error.response?.status || ''} ${error.message}`);
+      }
+    };
+    
+    fetchStudentCount();
+  }, [user]);
 
   // Filter guides based on search and active/available filter
   useEffect(() => {
@@ -273,7 +321,7 @@ const Dashboard = () => {
                     Total Students
                   </dt>
                   <dd className="mt-1 text-3xl font-semibold text-gray-900">
-                    {students?.length || 0}
+                    {studentCount}
                   </dd>
                 </div>
               </div>
