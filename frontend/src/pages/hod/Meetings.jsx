@@ -80,8 +80,22 @@ const Meetings = () => {
           // Update students with meeting counts
           const studentsWithMeetings = studentsWithoutMeetings.map(student => {
             const studentMeetings = allMeetings.filter(meeting => {
-              const meetingStudentId = meeting.studentId?._id || meeting.studentId;
-              return meetingStudentId === student.id;
+              // Get the studentId from the meeting in whatever form it's available
+              let meetingStudentId = null;
+              
+              // Handle different formats of studentId
+              if (meeting.studentId && typeof meeting.studentId === 'object') {
+                meetingStudentId = meeting.studentId._id || meeting.studentId.id;
+              } else {
+                meetingStudentId = meeting.studentId;
+              }
+              
+              // Convert both to strings for comparison
+              const meetingStudentIdStr = String(meetingStudentId || '').trim();
+              const compareStudentIdStr = String(student.id || '').trim();
+              
+              // Check for a match
+              return meetingStudentIdStr === compareStudentIdStr;
             });
             
             return {
@@ -159,39 +173,8 @@ const Meetings = () => {
       
       setMeetingDetails(initialLoadingDetails);
       
-      // STEP 1: First fetch the meetings for this student
-      // This helps us extract both student and guide information
-      console.log('Fetching meetings for student ID:', studentId);
-      let studentMeetings = [];
-      
-      try {
-        // Fetch department meetings and filter by student (don't use student-specific endpoint)
-        const meetingsResponse = await axios.get(
-          `${API_URL}/meetings/department`,
-          { headers: { Authorization: `Bearer ${user.token}` } }
-        );
-        
-        if (meetingsResponse.data && Array.isArray(meetingsResponse.data)) {
-          // Filter meetings for this specific student
-          studentMeetings = meetingsResponse.data.filter(meeting => {
-            const meetingStudentId = meeting.studentId?._id || meeting.studentId;
-            return meetingStudentId === studentId;
-          });
-          
-          console.log(`Found ${studentMeetings.length} meetings for student ${studentId}`);
-        } else {
-          console.warn('Invalid response format from meetings API');
-        }
-      } catch (meetingErr) {
-        console.error('Error fetching meetings:', meetingErr);
-        // Continue with empty meetings array
-        studentMeetings = [];
-      }
-      
-      // STEP 2: Extract basic student info from our existing list or from meetings
+      // Get basic student info from our existing list
       let studentInfo = null;
-      
-      // Try to get student info from the student list first
       const studentFromList = students.find(s => s.id === studentId);
       if (studentFromList) {
         console.log('Using student info from student list:', studentFromList);
@@ -199,138 +182,105 @@ const Meetings = () => {
           id: studentFromList.id,
           name: studentFromList.name,
           email: studentFromList.email,
-          department: studentFromList.department || user.department,
-          projectTitle: 'No Project Assigned',
-          enrollment: 'N/A',
-          semester: 'N/A',
-          branch: studentFromList.department || user.department
+          department: studentFromList.department || user.department
         };
-      }
-      
-      // Enhance student info from meetings if available
-      if (studentMeetings.length > 0 && studentMeetings[0].studentId && typeof studentMeetings[0].studentId === 'object') {
-        const studentFromMeeting = studentMeetings[0].studentId;
-        console.log('Enhancing student info from meeting data:', studentFromMeeting);
-        
+      } else {
+        // Fallback if we don't have the student in our list
         studentInfo = {
-          ...studentInfo,
-          id: studentFromMeeting._id || studentInfo.id,
-          name: studentFromMeeting.fullName || studentFromMeeting.name || studentInfo.name,
-          email: studentFromMeeting.email || studentInfo.email,
-          department: studentFromMeeting.department || studentFromMeeting.branch || studentInfo.department
+          id: studentId,
+          name: 'Unknown Student',
+          email: 'N/A',
+          department: user.department
         };
       }
       
-      // If we still don't have student info, try one more database fetch (without populate)
-      if (!studentInfo) {
-        try {
-          console.log('Fetching basic student data from API');
-          const studentResponse = await axios.get(
-            `${API_URL}/users/students/${studentId}`,
-            { headers: { Authorization: `Bearer ${user.token}` } }
-          );
-          
-          if (studentResponse.data) {
-            const basicStudentData = studentResponse.data;
-            studentInfo = {
-              id: basicStudentData._id,
-              name: basicStudentData.fullName || basicStudentData.name,
-              email: basicStudentData.email,
-              department: basicStudentData.department || basicStudentData.branch || user.department,
-              projectTitle: 'No Project Assigned',
-              enrollment: basicStudentData.enrollmentNumber || basicStudentData.regNumber || 'N/A',
-              semester: basicStudentData.semester || 'N/A',
-              branch: basicStudentData.branch || basicStudentData.department || user.department
-            };
-          }
-        } catch (studentErr) {
-          console.error('Error fetching student data:', studentErr);
-          // If we have absolutely no student info, use placeholder
-          if (!studentInfo) {
-            studentInfo = {
-              id: studentId,
-              name: 'Unknown Student',
-              email: 'N/A',
-              department: user.department,
-              projectTitle: 'No Project Assigned',
-              enrollment: 'N/A',
-              semester: 'N/A',
-              branch: user.department
-            };
-            toast.error('Unable to fetch student information');
-          }
-        }
-      }
-      
-      // STEP 3: Extract guide information from meetings if available
-      let guideInfo = {
-        id: 'unassigned',
-        name: 'Not Assigned',
-        department: 'N/A',
-        email: 'N/A',
-        phone: 'N/A',
-        specialization: 'N/A',
-        designation: 'Faculty'
-      };
-      
-      // Try to find guide information in meetings
-      if (studentMeetings.length > 0) {
-        // Find first meeting with populated faculty info
-        const meetingWithGuide = studentMeetings.find(m => 
-          m.facultyId && typeof m.facultyId === 'object' && m.facultyId !== null
+      // DIRECT APPROACH: Fetch all meetings and filter on our side
+      let studentMeetings = [];
+      try {
+        console.log('Fetching all meetings to find those for student ID:', studentId);
+        
+        // Fetch all meetings (avoid using /student/:id endpoint which might not exist)
+        const response = await axios.get(
+          `${API_URL}/meetings`,
+          { headers: { Authorization: `Bearer ${user.token}` } }
         );
         
-        if (meetingWithGuide && meetingWithGuide.facultyId) {
-          const extractedGuide = meetingWithGuide.facultyId;
-          console.log('Extracted guide information from meetings:', extractedGuide);
+        if (response.data && Array.isArray(response.data)) {
+          console.log('Successfully retrieved all meetings, total count:', response.data.length);
           
-          guideInfo = {
-            id: extractedGuide._id,
-            name: extractedGuide.fullName || extractedGuide.name || 'Unknown',
-            department: extractedGuide.department || extractedGuide.branch || 'Not Specified',
-            email: extractedGuide.email || 'N/A',
-            phone: extractedGuide.phone || extractedGuide.contactNumber || 'N/A',
-            specialization: extractedGuide.specialization || extractedGuide.expertise || 'Not Specified',
-            designation: extractedGuide.designation || extractedGuide.role || 'Faculty',
-            note: 'Information extracted from meeting data'
+          // Manually check each meeting to find this student's meetings
+          studentMeetings = response.data.filter(meeting => {
+            // Various ways to check if this meeting belongs to our student
+            if (typeof meeting.studentId === 'object' && meeting.studentId) {
+              // If studentId is populated as an object
+              return meeting.studentId._id === studentId || meeting.studentId.id === studentId;
+            } else if (typeof meeting.studentId === 'string') {
+              // If studentId is just a string ID
+              return meeting.studentId === studentId;
+            } else if (meeting.student && typeof meeting.student === 'object') {
+              // Some APIs might put student info in a field called 'student'
+              return meeting.student._id === studentId || meeting.student.id === studentId;
+            }
+            return false;
+          });
+          
+          console.log(`Filtered ${studentMeetings.length} meetings for student ${studentId}`);
+          
+          // Extract guide info from these meetings if available
+          let guideInfo = {
+            id: 'unassigned',
+            name: 'Not Assigned',
+            email: 'N/A'
           };
-        } else if (studentMeetings[0].facultyId) {
-          // If we have a guide ID but not the details, try to find them in department faculty
-          const guideId = studentMeetings[0].facultyId;
-          try {
-            console.log('Looking for guide in department faculty list');
-            const departmentFaculty = await hodService.getDepartmentFaculty(user.token, user.department);
-            const foundGuide = departmentFaculty.find(f => f._id === guideId);
+          
+          // Extract guide info from the meetings
+          if (studentMeetings.length > 0) {
+            const meetingWithGuide = studentMeetings.find(m => 
+              m.facultyId && typeof m.facultyId === 'object'
+            );
             
-            if (foundGuide) {
-              console.log('Found guide in department faculty list:', foundGuide);
+            if (meetingWithGuide && meetingWithGuide.facultyId) {
+              const guide = meetingWithGuide.facultyId;
               guideInfo = {
-                id: foundGuide._id,
-                name: foundGuide.fullName || foundGuide.name || 'Unknown',
-                department: foundGuide.department || foundGuide.branch || 'Not Specified',
-                email: foundGuide.email || 'N/A',
-                phone: foundGuide.phone || foundGuide.contactNumber || 'N/A',
-                specialization: foundGuide.specialization || foundGuide.expertise || 'Not Specified',
-                designation: foundGuide.designation || foundGuide.role || 'Faculty',
-                note: 'Information from department faculty list'
+                id: guide._id,
+                name: guide.fullName || guide.name || 'Unknown',
+                email: guide.email || 'N/A'
               };
             }
-          } catch (facultyErr) {
-            console.error('Error finding guide in faculty list:', facultyErr);
           }
+          
+          // Format the result
+          const finalMeetingDetails = {
+            studentInfo: studentInfo,
+            guideInfo: guideInfo,
+            meetings: studentMeetings
+          };
+          
+          console.log('Setting final meeting details with meetings:', finalMeetingDetails);
+          setMeetingDetails(finalMeetingDetails);
+        } else {
+          // If API returned invalid data
+          throw new Error('Invalid response format from meetings API');
         }
+      } catch (error) {
+        console.error('Error fetching meetings:', error);
+        
+        // Show an error message
+        toast.error('Error fetching meeting data. Please try again.');
+        
+        // Still show the student info we have
+        setMeetingDetails({
+          studentInfo: studentInfo,
+          guideInfo: {
+            id: 'error',
+            name: 'Error retrieving guide',
+            email: 'N/A'
+          },
+          meetings: []
+        });
+      } finally {
+        setIsLoadingMeetingDetails(false);
       }
-      
-      // STEP 4: Update the UI with the collected information
-      const finalMeetingDetails = {
-        studentInfo: studentInfo,
-        guideInfo: guideInfo,
-        meetings: studentMeetings
-      };
-      
-      console.log('Setting final meeting details:', finalMeetingDetails);
-      setMeetingDetails(finalMeetingDetails);
-      
     } catch (err) {
       console.error('Error in fetchMeetingDetails process:', err);
       const errorMessage = err.response?.data?.message || err.message || 'Unknown error occurred';
@@ -339,7 +289,6 @@ const Meetings = () => {
       
       // Close the modal if there's an error
       setViewingMeetingDetails(false);
-    } finally {
       setIsLoadingMeetingDetails(false);
     }
   };
