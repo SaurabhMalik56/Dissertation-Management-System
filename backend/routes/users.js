@@ -58,7 +58,7 @@ router.put('/students/:id/guide', allowRoles('hod', 'admin'), updateStudentGuide
 // PARAMETERIZED ROUTES LAST
 // -------------------------
 router.route('/:id')
-    .get(allowRoles('admin'), getUserById)
+    .get(allowRoles('admin', 'hod'), getUserById)
     .put(allowRoles('admin'), updateUser)
     .delete(allowRoles('admin'), deleteUser);
 

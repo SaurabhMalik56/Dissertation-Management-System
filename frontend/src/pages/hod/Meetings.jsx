@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
 import hodService from '../../services/hodService';
+import axios from 'axios';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const statusColors = {
   scheduled: 'bg-blue-100 text-blue-800 border border-blue-200',
@@ -44,41 +47,83 @@ const Meetings = () => {
         student.branch === user.department
       );
       
-      // Get all meetings to identify students with meetings
-      let allMeetings = [];
+      // Process students initially without meeting information
+      const studentsWithoutMeetings = departmentStudents.map(student => ({
+        id: student._id,
+        name: student.fullName || student.name,
+        email: student.email,
+        department: student.department || user.department,
+        meetingsCount: 0 // Default to 0 meetings
+      }));
+      
+      // Set students right away so the UI shows something even if meetings API fails
+      setStudents(studentsWithoutMeetings);
+      
+      // Try to get meeting information, but don't block showing students
       try {
         console.log("Attempting to fetch department meetings for student list...");
-        allMeetings = await hodService.getDepartmentMeetings(user.token);
-        console.log(`Successfully fetched ${allMeetings.length} meetings for student list`);
+        // Show loading in the UI for meetings data
+        const meetingsLoading = toast.info('Loading meetings data...', { autoClose: false });
+        
+        const response = await axios.get(
+          `${API_URL}/meetings/department`,
+          { headers: { Authorization: `Bearer ${user.token}` } }
+        );
+        
+        // Close the loading toast
+        toast.dismiss(meetingsLoading);
+        
+        if (response.data && Array.isArray(response.data)) {
+          const allMeetings = response.data;
+          console.log(`Successfully fetched ${allMeetings.length} real meetings for student list`);
+          
+          // Update students with meeting counts
+          const studentsWithMeetings = studentsWithoutMeetings.map(student => {
+            const studentMeetings = allMeetings.filter(meeting => {
+              const meetingStudentId = meeting.studentId?._id || meeting.studentId;
+              return meetingStudentId === student.id;
+            });
+            
+            return {
+              ...student,
+              meetingsCount: studentMeetings.length
+            };
+          });
+          
+          setStudents(studentsWithMeetings);
+        }
       } catch (meetingsError) {
         console.error('Error fetching meetings data:', meetingsError);
-        toast.warning('Unable to fetch meetings data. Students will be shown without meeting information.');
-        // Continue with empty meetings array
+        
+        // Show notification with retry option
+        if (meetingsError.response && meetingsError.response.status === 500) {
+          toast.error(
+            <div>
+              Server error while fetching meetings. 
+              <button 
+                className="ml-2 px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+                onClick={() => {
+                  toast.dismiss();
+                  fetchStudents();
+                }}
+              >
+                Retry
+              </button>
+            </div>,
+            { autoClose: false }
+          );
+        } else {
+          toast.warning('Unable to fetch meetings data. Students will be shown without meeting information.');
+        }
+        
+        // Continue with students list that has 0 meetings for everyone
       }
       
-      // Process students to include meeting count
-      const studentsWithMeetings = departmentStudents.map(student => {
-        const studentId = student._id;
-        const studentMeetings = allMeetings.filter(meeting => {
-          const meetingStudentId = meeting.student?._id || meeting.studentId;
-          return meetingStudentId === studentId;
-        });
-        
-        return {
-          id: student._id,
-          name: student.fullName || student.name,
-          email: student.email,
-          department: student.department || user.department,
-          meetingsCount: studentMeetings.length
-        };
-      });
-      
-      setStudents(studentsWithMeetings);
+      setIsLoading(false);
     } catch (err) {
       console.error('Error fetching students:', err);
       setError('Failed to load student data. Please try again.');
       toast.error('Unable to fetch students');
-    } finally {
       setIsLoading(false);
     }
   };
@@ -89,25 +134,108 @@ const Meetings = () => {
     try {
       setIsLoadingMeetingDetails(true);
       setError(null);
+      setMeetingDetails(null); // Clear previous meeting data
       
-      // Fetch student details
-      const studentDetails = await hodService.getStudentDetails(user.token, studentId);
+      // Find student in our existing students array first
+      const studentFromList = students.find(s => s.id === studentId);
+      let studentDetails = null;
       
-      // Fetch department meetings
+      try {
+        // Attempt to fetch full student details
+        console.log('Fetching student details for ID:', studentId);
+        studentDetails = await hodService.getStudentDetails(user.token, studentId);
+        console.log('Successfully fetched student details:', studentDetails);
+      } catch (studentErr) {
+        console.error(`Error fetching student details for ID ${studentId}:`, studentErr);
+        
+        // If we have some basic details from the list, use those instead
+        if (studentFromList) {
+          console.log('Using basic student info from student list:', studentFromList);
+          studentDetails = {
+            _id: studentFromList.id,
+            fullName: studentFromList.name,
+            name: studentFromList.name,
+            email: studentFromList.email,
+            department: studentFromList.department
+          };
+          toast.warning('Detailed student information unavailable. Using basic information instead.');
+        } else {
+          // We have no information about this student
+          throw new Error('Unable to retrieve student information. You may not have permission to view this student.');
+        }
+      }
+      
+      // Show the meeting details modal right away with loading state
+      setViewingMeetingDetails(true);
+      
+      // Format the initial response to show while meetings are loading
+      const initialMeetingDetails = {
+        studentInfo: {
+          id: studentDetails._id,
+          name: studentDetails.fullName || studentDetails.name,
+          department: studentDetails.department || 'Not Specified',
+          email: studentDetails.email,
+          projectTitle: studentDetails.projectTitle || 'No Project Assigned'
+        },
+        guideInfo: {
+          id: 'loading',
+          name: 'Loading...',
+          department: 'Loading...',
+          email: 'Loading...'
+        },
+        meetings: []
+      };
+      
+      setMeetingDetails(initialMeetingDetails);
+      
+      // Fetch meetings directly from the new API endpoint
       let studentMeetings = [];
       try {
-        // Attempt to fetch meetings
-        const allMeetings = await hodService.getDepartmentMeetings(user.token);
+        console.log('Fetching meetings directly for student ID:', studentId);
         
-        // Filter meetings for this student
-        studentMeetings = allMeetings.filter(meeting => {
-          const meetingStudentId = meeting.student?._id || meeting.studentId;
-          return meetingStudentId === studentId;
-        });
+        // Make direct API call to get meetings for this specific student
+        const response = await axios.get(
+          `${API_URL}/meetings/student/${studentId}`,
+          { headers: { Authorization: `Bearer ${user.token}` } }
+        );
+        
+        if (response.data && Array.isArray(response.data)) {
+          studentMeetings = response.data;
+          console.log(`Successfully fetched ${studentMeetings.length} meetings for student ${studentId}`);
+          
+          if (studentMeetings.length === 0) {
+            console.log('No meetings found for this student');
+            toast.info('No meetings found for this student');
+          }
+        } else {
+          console.warn('Invalid response from meetings API');
+          toast.warning('Unable to parse meetings data from server');
+        }
       } catch (meetingError) {
-        console.error('Error fetching meetings:', meetingError);
-        toast.warning('Unable to fetch meeting data. Basic student information will still be displayed.');
-        // Continue with empty meetings array
+        console.error('Error fetching student meetings:', meetingError);
+        
+        // Show specific message for server errors
+        if (meetingError.response && meetingError.response.status === 500) {
+          toast.error(
+            <div>
+              Server error while fetching meetings. 
+              <button 
+                className="ml-2 px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+                onClick={() => {
+                  toast.dismiss();
+                  fetchMeetingDetails(studentId);
+                }}
+              >
+                Retry
+              </button>
+            </div>,
+            { autoClose: false }
+          );
+        } else if (meetingError.response && meetingError.response.status === 404) {
+          toast.warning('No meetings found for this student');
+        } else {
+          toast.error(`Failed to fetch meetings: ${meetingError.response?.data?.message || 'Unknown error'}`);
+        }
       }
       
       // Get guide details if available
@@ -124,6 +252,8 @@ const Meetings = () => {
             studentDetails.assignedGuide._id : 
             studentDetails.assignedGuide;
           
+          console.log('Fetching guide details for ID:', guideId);
+          
           // Try to fetch faculty details directly
           const guideDetails = await hodService.getFacultyDetails(user.token, guideId);
           
@@ -136,11 +266,12 @@ const Meetings = () => {
             };
           }
         } catch (guideErr) {
-          console.error(`Error fetching guide details for student ${studentDetails._id}:`, guideErr);
+          console.error(`Error fetching guide details:`, guideErr);
+          toast.warning('Guide information unavailable.');
         }
       }
       
-      // Format the response similar to admin dashboard
+      // Format the final response with the meetings from the direct API call
       const formattedMeetingDetails = {
         studentInfo: {
           id: studentDetails._id,
@@ -154,18 +285,28 @@ const Meetings = () => {
       };
       
       setMeetingDetails(formattedMeetingDetails);
-      setViewingMeetingDetails(true);
-      } catch (err) {
+    } catch (err) {
       console.error('Error fetching meeting details:', err);
       const errorMessage = err.response?.data?.message || err.message || 'Unknown error occurred';
       setError(`Failed to load meeting details: ${errorMessage}`);
       toast.error(`Unable to fetch meeting details: ${errorMessage}`);
-      } finally {
+      
+      // Close the modal if there's an error
+      setViewingMeetingDetails(false);
+    } finally {
       setIsLoadingMeetingDetails(false);
     }
   };
 
   const handleViewMeetingDetails = (studentId) => {
+    // Get student details from the students array
+    const student = students.find(s => s.id === studentId);
+    
+    // Inform the user if there are no meetings, but still proceed to show details
+    if (student && student.meetingsCount === 0) {
+      toast.info('This student has no scheduled meetings. Showing student details.');
+    }
+    
     setSelectedStudentId(studentId);
     fetchMeetingDetails(studentId);
   };
@@ -260,10 +401,10 @@ const Meetings = () => {
                               Email
                             </th>
                             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Meetings
+                              Meeting Count
                             </th>
                             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Actions
+                              Meetings
                             </th>
                           </tr>
                         </thead>
@@ -285,20 +426,16 @@ const Meetings = () => {
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                 <button 
-                                  className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors duration-200"
                                   onClick={() => handleViewMeetingDetails(student.id)}
-                                  title="View student meetings"
-                                  disabled={student.meetingsCount === 0}
-                                  className={`inline-flex items-center px-4 py-2 rounded-md transition-colors duration-200 ${
-                                    student.meetingsCount > 0 
-                                      ? 'bg-indigo-600 text-white hover:bg-indigo-700' 
-                                      : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                                  }`}
+                                  title={student.meetingsCount > 0 ? "View student meetings" : "No meetings found, but you can view student details"}
+                                  className="inline-flex items-center px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 transition-colors duration-200"
                                 >
                                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
                                     <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
                                   </svg>
-                                  View Meetings
+                                  {student.meetingsCount > 0 
+                                    ? `View Meetings (${student.meetingsCount})` 
+                                    : "View Details"}
                                 </button>
                               </td>
                             </tr>
@@ -433,8 +570,34 @@ const Meetings = () => {
                             </table>
                           </div>
                         ) : (
-                          <div className="bg-gray-50 p-6 text-center rounded-md">
-                            <p className="text-gray-500">No meetings found for this student.</p>
+                          <div className="bg-white border rounded-md overflow-hidden">
+                            <div className="py-10 px-6 text-center">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                              <h3 className="text-lg font-medium text-gray-700 mb-2">No Meetings Found</h3>
+                              <p className="text-gray-600 mb-4">This student doesn't have any scheduled or past meetings in the system.</p>
+                              <div className="flex flex-col items-center gap-2">
+                                <div className="rounded-md bg-yellow-50 p-4 max-w-md">
+                                  <div className="flex">
+                                    <div className="flex-shrink-0">
+                                      <svg className="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                                      </svg>
+                                    </div>
+                                    <div className="ml-3">
+                                      <h3 className="text-sm font-medium text-yellow-800">Information</h3>
+                                      <div className="mt-2 text-sm text-yellow-700 text-left">
+                                        <p>
+                                          Meetings are scheduled by faculty members for their assigned students. 
+                                          This student either hasn't been assigned a guide yet or their guide hasn't scheduled any meetings.
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
                           </div>
                         )}
                         
@@ -520,9 +683,12 @@ const Meetings = () => {
                 {/* Loading indicator for meeting details */}
                 {isLoadingMeetingDetails && (
                   <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-                    <div className="bg-white p-8 rounded-lg shadow-xl flex flex-col items-center">
+                    <div className="bg-white p-8 rounded-lg shadow-xl flex flex-col items-center max-w-md">
                       <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-indigo-500"></div>
-                      <p className="mt-4 text-indigo-600 font-medium">Loading student meeting details...</p>
+                      <p className="mt-4 text-lg font-medium text-indigo-600">Loading student meeting details...</p>
+                      <p className="mt-2 text-gray-600 text-center">
+                        Retrieving information from the database. This may take a moment.
+                      </p>
                     </div>
                   </div>
                 )}

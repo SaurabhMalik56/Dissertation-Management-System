@@ -303,40 +303,115 @@ exports.getDepartmentMeetings = async (req, res) => {
 
         console.log('Fetching meetings for department:', hodDepartment);
 
-        // Find faculty in the HOD's department
-        const facultyInDepartment = await User.find({ 
-            role: 'faculty',
-            $or: [
-                { department: hodDepartment },
-                { branch: hodDepartment }
-            ]
-        }).select('_id');
+        try {
+            // Find faculty in the HOD's department
+            const facultyInDepartment = await User.find({ 
+                role: 'faculty',
+                $or: [
+                    { department: hodDepartment },
+                    { branch: hodDepartment }
+                ]
+            }).select('_id');
 
-        console.log(`Found ${facultyInDepartment.length} faculty members in department`);
-        
-        if (facultyInDepartment.length === 0) {
-            // Return empty array if no faculty found (to avoid query error)
-            console.log('No faculty found in department, returning empty array');
-            return res.json([]);
+            console.log(`Found ${facultyInDepartment.length} faculty members in department`);
+            
+            if (facultyInDepartment.length === 0) {
+                // Return empty array if no faculty found (to avoid query error)
+                console.log('No faculty found in department, returning empty array');
+                return res.json([]);
+            }
+
+            const facultyIds = facultyInDepartment.map(faculty => faculty._id);
+
+            // Get meetings where the guide is from the HOD's department
+            const meetings = await Meeting.find({ 
+                facultyId: { $in: facultyIds }
+            })
+            .populate('studentId', 'fullName email')
+            .populate('facultyId', 'fullName email')
+            .populate('projectId', 'title')
+            .sort({ scheduledDate: -1 });
+
+            console.log(`Found ${meetings.length} meetings for department ${hodDepartment}`);
+            res.json(meetings);
+        } catch (findError) {
+            console.error('Database query error:', findError);
+            return res.status(500).json({
+                message: 'Error querying for meetings',
+                error: findError.message
+            });
         }
-
-        const facultyIds = facultyInDepartment.map(faculty => faculty._id);
-
-        // Get meetings where the guide is from the HOD's department
-        const meetings = await Meeting.find({ 
-            facultyId: { $in: facultyIds }
-        })
-        .populate('studentId', 'fullName email')
-        .populate('facultyId', 'fullName email')
-        .populate('projectId', 'title')
-        .sort({ scheduledDate: -1 });
-
-        console.log(`Found ${meetings.length} meetings for department ${hodDepartment}`);
-        res.json(meetings);
     } catch (error) {
         console.error('Error fetching department meetings:', error);
         res.status(500).json({ 
             message: 'Error fetching department meetings', 
+            error: error.message 
+        });
+    }
+};
+
+// @desc    Get meetings for a specific student (HOD view)
+// @route   GET /api/meetings/student/:studentId
+// @access  Private/HOD
+exports.getStudentMeetings = async (req, res) => {
+    try {
+        // Only HODs can access this route
+        if (req.user.role !== 'hod') {
+            return res.status(403).json({ 
+                message: 'Not authorized to access student meetings' 
+            });
+        }
+
+        const { studentId } = req.params;
+        
+        if (!studentId) {
+            return res.status(400).json({ 
+                message: 'Student ID is required' 
+            });
+        }
+
+        console.log('Fetching meetings for student ID:', studentId);
+
+        try {
+            // First, verify the student exists and is in the HOD's department
+            const student = await User.findById(studentId);
+            
+            if (!student) {
+                return res.status(404).json({ message: 'Student not found' });
+            }
+            
+            const hodDepartment = req.user.department || req.user.branch;
+            const studentDepartment = student.department || student.branch;
+            
+            // Check if student belongs to HOD's department
+            if (hodDepartment !== studentDepartment) {
+                return res.status(403).json({ 
+                    message: 'Not authorized to view meetings for students from other departments' 
+                });
+            }
+
+            // Get all meetings for this specific student
+            const meetings = await Meeting.find({ 
+                studentId: studentId 
+            })
+            .populate('studentId', 'fullName email')
+            .populate('facultyId', 'fullName email')
+            .populate('projectId', 'title')
+            .sort({ scheduledDate: -1 });
+
+            console.log(`Found ${meetings.length} meetings for student ${studentId}`);
+            res.json(meetings);
+        } catch (findError) {
+            console.error('Database query error:', findError);
+            return res.status(500).json({
+                message: 'Error querying for student meetings',
+                error: findError.message
+            });
+        }
+    } catch (error) {
+        console.error('Error fetching student meetings:', error);
+        res.status(500).json({ 
+            message: 'Error fetching student meetings', 
             error: error.message 
         });
     }

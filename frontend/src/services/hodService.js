@@ -25,7 +25,9 @@ const cache = {
   departmentStudents: null,
   departmentStudentsTimestamp: null,
   facultyData: null,
-  facultyTimestamp: null
+  facultyTimestamp: null,
+  studentData: null,
+  studentTimestamp: null
 };
 
 // Cache timeout in milliseconds (30 minutes)
@@ -42,6 +44,8 @@ const clearCache = () => {
   cache.departmentStudentsTimestamp = null;
   cache.facultyData = null;
   cache.facultyTimestamp = null;
+  cache.studentData = null;
+  cache.studentTimestamp = null;
 };
 
 const clearFacultyCache = () => {
@@ -57,9 +61,11 @@ const clearProjectsCache = () => {
 };
 
 const clearStudentsCache = () => {
-  console.log('Clearing students cache data');
+  console.log('Clearing students cache');
   cache.departmentStudents = null;
   cache.departmentStudentsTimestamp = null;
+  cache.studentData = null;
+  cache.studentTimestamp = null;
 };
 
 // Function to check if cache is expired
@@ -200,23 +206,35 @@ const getDepartmentStudents = async (token, department, forceRefresh = false) =>
     // Use cached data if available and not expired, unless force refresh is requested
     if (!forceRefresh && cache.departmentStudents && !isCacheExpired(cache.departmentStudentsTimestamp)) {
       console.log('Using cached students data');
+      
+      // Also update the student cache for quick lookups by ID if it's not already set
+      if (!cache.studentData) {
+        cache.studentData = cache.departmentStudents;
+        cache.studentTimestamp = cache.departmentStudentsTimestamp;
+      }
+      
       return cache.departmentStudents;
     }
 
     console.log('Fetching fresh students data from API');
     console.log('Making API call to get students with token:', token ? token.substring(0, 15) + '...' : 'No token');
     console.log('Department:', department);
-    
+
     const response = await axios.get(
       `${API_URL}/users/students?branch=${department}`, 
       createAuthHeader(token)
     );
-    
+
     // Update cache
     cache.departmentStudents = response.data;
     cache.departmentStudentsTimestamp = now;
-    console.log(`Cached ${response.data.length} department students`);
     
+    // Also update the student cache for quick lookups by ID
+    cache.studentData = response.data;
+    cache.studentTimestamp = now;
+    
+    console.log(`Cached ${response.data.length} department students`);
+
     return response.data;
   } catch (error) {
     console.error('Error fetching students:', error);
@@ -388,7 +406,7 @@ const getProjectStats = async (token) => {
 // Get student statistics by guide, technology, etc.
 const getStudentStats = async (token, department) => {
   try {
-    const students = await getDepartmentStudents(token, department);
+    const students = await getDepartmentStudents(token);
     const projects = await getDepartmentProjects(token);
     
     // Students with and without projects
@@ -417,7 +435,7 @@ const getDashboardData = async (token, department) => {
     // Fetch all data in parallel
     const [facultyData, studentsData, projectsData] = await Promise.all([
       getAllFaculty(token),
-      getDepartmentStudents(token, department),
+      getDepartmentStudents(token),
       getDepartmentProjects(token)
     ]);
     
@@ -546,6 +564,95 @@ const getDepartmentMeetings = async (token) => {
   }
 };
 
+// Get meetings for a specific student
+const getStudentMeetings = async (token, studentId) => {
+  try {
+    if (!studentId) {
+      throw new Error('Student ID is required to fetch meetings');
+    }
+    
+    console.log(`Attempting to fetch meetings for student: ${studentId}`);
+    
+    // Make a direct API call to get all department meetings
+    const response = await axios.get(
+      `${API_URL}/meetings/department`,
+      createAuthHeader(token)
+    );
+    
+    if (!response.data || !Array.isArray(response.data)) {
+      console.error('Invalid response format from meetings API:', response.data);
+      throw new Error('Invalid response data from server');
+    }
+    
+    console.log(`Successfully fetched ${response.data.length} department meetings`);
+    
+    // Filter meetings by student ID
+    const studentMeetings = response.data.filter(meeting => {
+      // Handle different ways the student ID might be stored
+      const meetingStudentId = meeting.studentId?._id || meeting.studentId;
+      return meetingStudentId === studentId;
+    });
+    
+    console.log(`Found ${studentMeetings.length} meetings for student ${studentId}`);
+    
+    // Return the filtered meetings data (no mock data)
+    return studentMeetings;
+  } catch (error) {
+    console.error(`Error fetching meetings for student ${studentId}:`, error);
+    // Just throw the error without generating mock data
+    throw error;
+  }
+};
+
+// Helper function to create mock meetings for a specific student
+const createMockMeetingsForStudent = (studentId, studentName) => {
+  console.log(`Creating mock meetings for student: ${studentName} (${studentId})`);
+  const now = new Date();
+  
+  return [
+    {
+      _id: `mock-meeting-1-${studentId}`,
+      title: 'Project Proposal Discussion',
+      meetingNumber: 1,
+      scheduledDate: new Date(now.getTime() - 15 * 24 * 60 * 60 * 1000).toISOString(),
+      status: 'completed',
+      duration: '45 minutes',
+      meetingType: 'proposal-review',
+      startTime: '10:00 AM',
+      meetingSummary: 'Initial project scope discussion',
+      guideRemarks: 'Student presented a well-thought-out proposal. Suggested some refinements to the methodology.',
+      studentId: studentId,
+      student: { _id: studentId, fullName: studentName }
+    },
+    {
+      _id: `mock-meeting-2-${studentId}`,
+      title: 'Implementation Progress Review',
+      meetingNumber: 2,
+      scheduledDate: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+      status: 'completed',
+      duration: '30 minutes',
+      meetingType: 'progress-review',
+      startTime: '11:30 AM',
+      meetingSummary: 'Reviewed implementation progress. Student demonstrated prototype.',
+      guideRemarks: 'Good progress on implementation. Discussed some improvements for the user interface.',
+      studentId: studentId,
+      student: { _id: studentId, fullName: studentName }
+    },
+    {
+      _id: `mock-meeting-3-${studentId}`,
+      title: 'Final Presentation Preparation',
+      meetingNumber: 3,
+      scheduledDate: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      status: 'scheduled',
+      duration: '60 minutes',
+      meetingType: 'final-review',
+      startTime: '2:00 PM',
+      studentId: studentId,
+      student: { _id: studentId, fullName: studentName }
+    }
+  ];
+};
+
 // Helper function to generate mock meetings for the department
 const generateMockMeetingsForDepartment = async (token) => {
   try {
@@ -631,6 +738,15 @@ const getStudentDetails = async (token, studentId) => {
       throw new Error('Student ID is required');
     }
     
+    // First try to find student in cache to avoid unnecessary API calls
+    if (cache.studentData) {
+      const cachedStudent = cache.studentData.find(s => s._id === studentId);
+      if (cachedStudent) {
+        console.log(`Using cached data for student ${studentId}`);
+        return cachedStudent;
+      }
+    }
+    
     console.log(`Fetching details for student: ${studentId}`);
     const response = await axios.get(
       `${API_URL}/users/${studentId}`,
@@ -640,6 +756,47 @@ const getStudentDetails = async (token, studentId) => {
     return response.data;
   } catch (error) {
     console.error(`Error fetching student details for ID ${studentId}:`, error);
+    
+    // If it's a 403 error (permission issue), check if we have basic data in cache
+    if (error.response && error.response.status === 403 && cache.studentData) {
+      const basicStudentInfo = cache.studentData.find(s => s._id === studentId);
+      if (basicStudentInfo) {
+        console.log(`Using basic cached data for student ${studentId} due to permission issue`);
+        return basicStudentInfo;
+      }
+    }
+    
+    // Re-throw the error to be handled by the calling function
+    throw error;
+  }
+};
+
+// Get details for a specific faculty member
+const getFacultyDetails = async (token, facultyId) => {
+  try {
+    if (!facultyId) {
+      throw new Error('Faculty ID is required');
+    }
+    
+    // First try to find faculty in cache to avoid unnecessary API calls
+    if (cache.facultyData) {
+      const cachedFaculty = cache.facultyData.find(f => f._id === facultyId);
+      if (cachedFaculty) {
+        console.log(`Using cached data for faculty ${facultyId}`);
+        return cachedFaculty;
+      }
+    }
+    
+    // If not in cache, fetch from API
+    console.log(`Fetching details for faculty: ${facultyId}`);
+    const response = await axios.get(
+      `${API_URL}/users/${facultyId}`,
+      createAuthHeader(token)
+    );
+    
+    return response.data;
+  } catch (error) {
+    console.error(`Error fetching faculty details for ID ${facultyId}:`, error);
     throw error;
   }
 };
@@ -662,8 +819,11 @@ const hodService = {
   clearStudentsCache,
   verifyAuthentication,
   getDepartmentMeetings,
+  getStudentMeetings,
+  createMockMeetingsForStudent,
   updateProfile,
-  getStudentDetails
+  getStudentDetails,
+  getFacultyDetails
 };
 
 export default hodService; 

@@ -5,7 +5,8 @@ const {
     getMeetingById, 
     updateMeetingStatus, 
     updateStudentPoints,
-    getDepartmentMeetings
+    getDepartmentMeetings,
+    getStudentMeetings
 } = require('../controllers/meetingController');
 const { protect, authorize } = require('../middleware/auth');
 
@@ -19,6 +20,11 @@ router.route('/')
     .post(authorize('faculty'), createMeeting)
     .get(getMeetings);
 
+// HOD only routes - MUST come before the /:id route to avoid conflicts
+router.get('/department', authorize('hod'), getDepartmentMeetings);
+router.get('/student/:studentId', authorize('hod'), getStudentMeetings);
+
+// Individual meeting routes
 router.route('/:id')
     .get(getMeetingById);
 
@@ -27,8 +33,5 @@ router.put('/:id/status', authorize('faculty'), updateMeetingStatus);
 
 // Student only routes
 router.put('/:id/student-points', authorize('student'), updateStudentPoints);
-
-// HOD only routes
-router.get('/department', authorize('hod'), getDepartmentMeetings);
 
 module.exports = router; 

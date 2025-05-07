@@ -73,16 +73,32 @@ exports.getStudents = async (req, res) => {
 
 // @desc    Get a user by ID
 // @route   GET /api/users/:id
-// @access  Private/Admin
+// @access  Private/Admin,HOD
 exports.getUserById = async (req, res) => {
     try {
         const user = await User.findById(req.params.id).select('-password');
 
-        if (user) {
-            res.json(user);
-        } else {
-            res.status(404).json({ message: 'User not found' });
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
         }
+
+        // If requester is HOD, they can only access users from their department
+        if (req.user.role === 'hod') {
+            console.log(`[HOD Access] HOD from ${req.user.branch} department accessing user in ${user.branch} department`);
+            
+            // HODs can only access students and faculty from their department
+            if ((user.role === 'student' || user.role === 'faculty') && user.branch === req.user.branch) {
+                return res.json(user);
+            } else {
+                console.log('[HOD Access] Access denied - User not in HOD department or not student/faculty');
+                return res.status(403).json({ 
+                    message: 'Access denied. You can only view users from your department.' 
+                });
+            }
+        }
+
+        // Admin can access any user
+        res.json(user);
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Server error', error: error.message });
