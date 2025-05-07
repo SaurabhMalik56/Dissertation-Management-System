@@ -522,13 +522,9 @@ const Meetings = () => {
                               <p><span className="font-medium">Name:</span> {meetingDetails.studentInfo.name}</p>
                               <p><span className="font-medium">Email:</span> {meetingDetails.studentInfo.email}</p>
                               <p><span className="font-medium">Department:</span> {meetingDetails.studentInfo.department}</p>
-                              {meetingDetails.studentInfo.enrollment && (
-                                <p><span className="font-medium">Enrollment:</span> {meetingDetails.studentInfo.enrollment}</p>
-                              )}
                               {meetingDetails.studentInfo.semester && meetingDetails.studentInfo.semester !== 'N/A' && (
                                 <p><span className="font-medium">Semester:</span> {meetingDetails.studentInfo.semester}</p>
                               )}
-                              <p><span className="font-medium">Project:</span> {meetingDetails.studentInfo.projectTitle}</p>
                             </div>
                           </div>
                           <div className="bg-gray-50 p-4 rounded-lg border">
@@ -536,15 +532,11 @@ const Meetings = () => {
                             <div className="text-sm text-gray-600 space-y-1">
                               <p><span className="font-medium">Name:</span> {meetingDetails.guideInfo.name}</p>
                               <p><span className="font-medium">Email:</span> {meetingDetails.guideInfo.email}</p>
-                              <p><span className="font-medium">Department:</span> {meetingDetails.guideInfo.department}</p>
                               {meetingDetails.guideInfo.designation && meetingDetails.guideInfo.designation !== 'Faculty' && (
                                 <p><span className="font-medium">Designation:</span> {meetingDetails.guideInfo.designation}</p>
                               )}
                               {meetingDetails.guideInfo.phone && meetingDetails.guideInfo.phone !== 'N/A' && (
                                 <p><span className="font-medium">Contact:</span> {meetingDetails.guideInfo.phone}</p>
-                              )}
-                              {meetingDetails.guideInfo.specialization && meetingDetails.guideInfo.specialization !== 'N/A' && (
-                                <p><span className="font-medium">Specialization:</span> {meetingDetails.guideInfo.specialization}</p>
                               )}
                               {meetingDetails.guideInfo.id === 'unassigned' && (
                                 <p className="mt-2 text-amber-600">No guide has been assigned to this student yet.</p>
