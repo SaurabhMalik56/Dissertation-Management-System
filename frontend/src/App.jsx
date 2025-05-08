@@ -191,6 +191,14 @@ function App() {
             } 
           />
           <Route 
+            path="faculty/evaluations" 
+            element={
+              <ProtectedRoute allowedRoles={['faculty']}>
+                <FacultyDashboard />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
             path="faculty/profile" 
             element={
               <ProtectedRoute allowedRoles={['faculty']}>

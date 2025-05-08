@@ -124,15 +124,37 @@ const Dashboard = () => {
   ];
 
   useEffect(() => {
-    // Get active tab from URL hash, if present
-    const hash = window.location.hash.replace('#', '');
-    const validTabs = tabs.map(tab => tab.id);
-    if (hash && validTabs.includes(hash)) {
-      setActiveTab(hash);
+    // Set active tab based on the URL path
+    const path = location.pathname;
+    
+    if (path.includes('/faculty/students')) {
+      setActiveTab('students');
+      window.location.hash = 'students';
+    }
+    else if (path.includes('/faculty/projects')) {
+      setActiveTab('projects');
+      window.location.hash = 'projects';
+    }
+    else if (path.includes('/faculty/meetings')) {
+      setActiveTab('meetings');
+      window.location.hash = 'meetings';
+    }
+    else if (path.includes('/faculty/evaluations')) {
+      setActiveTab('evaluations');
+      window.location.hash = 'evaluations';
+    }
+    else if (path.includes('/faculty/profile')) {
+      setActiveTab('profile');
+      window.location.hash = 'profile';
+    }
+    else if (path === '/faculty') {
+      setActiveTab('overview');
+      window.location.hash = 'overview';
     }
     
+    // After setting activeTab, fetch dashboard data
     fetchDashboardData();
-  }, [user]);
+  }, [location.pathname, user]);
 
   useEffect(() => {
     // Fetch data on component mount
