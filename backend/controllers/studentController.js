@@ -231,56 +231,25 @@ const getEvaluationResults = asyncHandler(async (req, res) => {
     throw new Error('Not authorized - student access only');
   }
 
-  try {
-    // Instead of looking up by submission, look up by student ID directly
-    const evaluation = await Evaluation.findOne({ student: req.user.id })
-      .populate('evaluator', 'name email department')
-      .populate('project', 'title')
-      .sort({ createdAt: -1 }); // Get the most recent evaluation
+  // Instead of looking up by submission, look up by student ID directly
+  const evaluation = await Evaluation.findOne({ student: req.user.id })
+    .populate('evaluator', 'name email department')
+    .populate('project', 'title')
+    .sort({ createdAt: -1 }); // Get the most recent evaluation
 
-    if (!evaluation) {
-      // If no evaluations exist, provide a mock evaluation for demonstration
-      // This is temporary for development purposes
-      const mockEvaluation = {
-        evaluationType: 'mid-term',
-        presentationScore: 85,
-        contentScore: 78,
-        researchScore: 88,
-        innovationScore: 92,
-        implementationScore: 80,
-        comments: 'This is a sample evaluation. Your actual evaluation will appear here once faculty has evaluated your submission.',
-        overallGrade: 'B',
-        projectTitle: 'Your Dissertation Project',
-        evaluator: {
-          name: 'Faculty Evaluator',
-          email: 'faculty@example.com',
-          department: 'Computer Science'
-        },
-        createdAt: new Date()
-      };
-      
-      return res.status(200).json(mockEvaluation);
-      
-      // Uncomment the below code and remove the mock data above when real evaluations are available
-      /*
-      res.status(404);
-      throw new Error('No evaluation found for your dissertation yet.');
-      */
-    }
-
-    // Add project title to the response if not already included by populate
-    let responseData = evaluation.toObject();
-    
-    if (!responseData.projectTitle && evaluation.project) {
-      responseData.projectTitle = evaluation.project.title || 'Unnamed Project';
-    }
-
-    res.status(200).json(responseData);
-  } catch (error) {
-    console.error('Error fetching evaluation:', error);
-    res.status(500);
-    throw new Error('Error retrieving evaluation data: ' + error.message);
+  if (!evaluation) {
+    res.status(404);
+    throw new Error('No evaluation found for your dissertation yet.');
   }
+
+  // Add project title to the response if not already included by populate
+  let responseData = evaluation.toObject();
+  
+  if (!responseData.projectTitle && evaluation.project) {
+    responseData.projectTitle = evaluation.project.title || 'Unnamed Project';
+  }
+
+  res.status(200).json(responseData);
 });
 
 // @desc    Get final submission

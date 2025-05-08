@@ -120,19 +120,12 @@ const Dashboard = () => {
             console.log('Evaluation data fetched:', evaluationData);
           } catch (evalError) {
             console.error('Error fetching evaluation data:', evalError);
-            // Don't throw an error - we'll handle it gracefully by setting a placeholder
-            evaluationData = {
-              evaluationType: 'pending',
-              presentationScore: 0,
-              contentScore: 0,
-              researchScore: 0,
-              innovationScore: 0,
-              implementationScore: 0,
-              comments: 'No evaluation available yet.',
-              overallGrade: 'Pending',
-              projectTitle: 'Your Project',
-              createdAt: new Date()
-            };
+            // Set evaluationData to null when no data is available
+            evaluationData = null;
+            // Show user-friendly toast message
+            if (evalError.response && evalError.response.status === 404) {
+              toast.info('No evaluations available yet. Your faculty will evaluate your work soon.');
+            }
           }
         }
         
@@ -148,7 +141,7 @@ const Dashboard = () => {
             upcomingMeetings: meetings.filter(m => new Date(m.scheduledDate || m.dateTime) > new Date()).length || 0,
             submissionsThisMonth: data.submissionsThisMonth || 0
           },
-          evaluation: evaluationData || data.evaluation // Include evaluation data
+          evaluation: evaluationData // Use only directly fetched evaluation data, not data.evaluation
         });
         
         console.log('Dashboard data loaded successfully');
@@ -249,7 +242,7 @@ const Dashboard = () => {
           upcomingMeetings: meetings.filter(m => new Date(m.scheduledDate || m.dateTime) > new Date()).length || 0,
           submissionsThisMonth: data.submissionsThisMonth || 0
         },
-        evaluation: data.evaluation || null
+        evaluation: null // Always set to null during general refresh, use fetchEvaluationData for evaluation data
       });
       
       toast.success('Dashboard updated');
@@ -311,21 +304,10 @@ const Dashboard = () => {
         toast.error('Failed to fetch evaluation data. Try again later.');
       }
       
-      // Set a placeholder evaluation so the UI can still render
+      // Set evaluation to null instead of using placeholder data
       setDashboardData(prev => ({
         ...prev,
-        evaluation: {
-          evaluationType: 'pending',
-          presentationScore: 0,
-          contentScore: 0,
-          researchScore: 0,
-          innovationScore: 0,
-          implementationScore: 0,
-          comments: 'No evaluation available yet.',
-          overallGrade: 'Pending',
-          projectTitle: 'Your Project',
-          createdAt: new Date()
-        }
+        evaluation: null
       }));
     } finally {
       setEvaluationLoading(false);
@@ -629,7 +611,18 @@ const Dashboard = () => {
                 <span>Refresh</span>
               </button>
             </div>
-            <EvaluationResults evaluation={dashboardData.evaluation} />
+            {dashboardData.evaluation ? (
+              <EvaluationResults evaluation={dashboardData.evaluation} />
+            ) : (
+              <div className="bg-white rounded-lg shadow p-8 text-center">
+                <FaClipboardList className="mx-auto text-gray-400 text-4xl mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No Evaluation Available Yet</h3>
+                <p className="text-gray-600 mb-4">Your faculty has not submitted an evaluation for your project. Evaluations are typically completed after key milestones or presentations.</p>
+                <div className="mt-4 p-4 bg-indigo-50 rounded-lg inline-block">
+                  <p className="text-sm text-indigo-700">You will receive a notification when your evaluation is ready to view.</p>
+                </div>
+              </div>
+            )}
           </div>
         );
       case 'notifications':
