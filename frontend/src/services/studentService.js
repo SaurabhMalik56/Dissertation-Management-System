@@ -355,10 +355,40 @@ const getNotifications = async (token) => {
 const markNotificationsAsRead = async (notificationIds, token) => {
   try {
     setAuthToken(token);
-    const response = await axios.put(`${API_URL}/students/notifications/mark-read`, { notificationIds });
-    return response.data;
+    // If notificationIds is a single ID, handle it properly
+    if (!Array.isArray(notificationIds)) {
+      return markNotificationAsRead(notificationIds, token);
+    }
+    
+    // Process multiple notifications
+    const promises = notificationIds.map(id => markNotificationAsRead(id, token));
+    return Promise.all(promises);
   } catch (error) {
     console.error('Error marking notifications as read:', error);
+    throw error;
+  }
+};
+
+// Mark a single notification as read
+const markNotificationAsRead = async (notificationId, token) => {
+  try {
+    setAuthToken(token);
+    const response = await axios.patch(`${API_URL}/students/notifications/${notificationId}/read`);
+    return response.data;
+  } catch (error) {
+    console.error(`Error marking notification ${notificationId} as read:`, error);
+    throw error;
+  }
+};
+
+// Mark all notifications as read
+const markAllNotificationsAsRead = async (token) => {
+  try {
+    setAuthToken(token);
+    const response = await axios.patch(`${API_URL}/students/notifications/all/read`);
+    return response.data;
+  } catch (error) {
+    console.error('Error marking all notifications as read:', error);
     throw error;
   }
 };
@@ -575,6 +605,8 @@ const studentService = {
   updateProgress,
   getNotifications,
   markNotificationsAsRead,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
   submitFinalDissertation,
   getEvaluationResults,
   getMeetingsFromGuide,

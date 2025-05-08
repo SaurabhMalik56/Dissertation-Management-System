@@ -719,8 +719,10 @@ const Dashboard = () => {
                           <button
                             onClick={async () => {
                               try {
-                                await studentService.markNotificationAsRead(notification._id, user.token);
+                                // Use the updated function for single notification
+                                await studentService.markNotificationsAsRead(notification._id, user.token);
                                 await refreshDashboard();
+                                toast.success('Notification marked as read');
                               } catch (error) {
                                 console.error('Error marking notification as read:', error);
                                 toast.error('Failed to mark notification as read');
