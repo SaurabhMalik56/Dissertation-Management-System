@@ -9,7 +9,12 @@ import {
   FaSync,
   FaTimes,
   FaEdit,
-  FaCheck
+  FaCheck,
+  FaTasks,
+  FaUsers,
+  FaClipboardList,
+  FaClipboardCheck,
+  FaUserGraduate
 } from 'react-icons/fa';
 import axios from 'axios';
 import { useLocation } from 'react-router-dom';
@@ -17,6 +22,7 @@ import facultyService from '../../services/facultyService';
 import ProfileSection from '../../components/faculty/ProfileSection';
 import AssignedStudents from '../../components/faculty/AssignedStudents';
 import MeetingsManager from '../../components/faculty/MeetingsManager';
+import EvaluationSection from '../../components/faculty/EvaluationSection';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -107,21 +113,26 @@ const Dashboard = () => {
     }
   });
 
+  // Add evaluation tab to the tabs state
+  const tabs = [
+    { id: 'overview', label: 'Overview', icon: <FaTasks /> },
+    { id: 'students', label: 'Students', icon: <FaUsers /> },
+    { id: 'meetings', label: 'Meetings', icon: <FaCalendarAlt /> },
+    { id: 'projects', label: 'Projects', icon: <FaClipboardList /> },
+    { id: 'evaluations', label: 'Evaluations', icon: <FaClipboardCheck /> },
+    { id: 'profile', label: 'Profile', icon: <FaUserGraduate /> }
+  ];
+
   useEffect(() => {
-    // Set active tab based on URL path
-    const path = location.pathname;
-    if (path.includes('/faculty/students')) {
-      setActiveTab('students');
-    } else if (path.includes('/faculty/projects')) {
-      setActiveTab('projects');
-    } else if (path.includes('/faculty/meetings')) {
-      setActiveTab('meetings');
-    } else if (path.includes('/faculty/profile')) {
-      setActiveTab('profile');
-    } else {
-      setActiveTab('overview');
+    // Get active tab from URL hash, if present
+    const hash = window.location.hash.replace('#', '');
+    const validTabs = tabs.map(tab => tab.id);
+    if (hash && validTabs.includes(hash)) {
+      setActiveTab(hash);
     }
-  }, [location.pathname]);
+    
+    fetchDashboardData();
+  }, [user]);
 
   useEffect(() => {
     // Fetch data on component mount
@@ -832,108 +843,34 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Main content tabs */}
-      <div className="card">
-        <div className="card-header">
-          <div className="tab-container">
-            <ul className="tab-list">
-              <li key="tab-overview" className="mr-2">
-                <button
-                  className={`tab ${activeTab === 'overview' ? 'tab-active' : 'tab-inactive'}`}
-                  onClick={() => {
-                    setActiveTab('overview');
-                    // Fetch updated dashboard data when switching to overview
-                    if (activeTab !== 'overview') {
-                      fetchDashboardData();
-                      toast.info("Refreshing dashboard data...");
-                    }
-                  }}
-                >
-                  Overview
-                </button>
-              </li>
-              <li key="tab-students" className="mr-2">
-                <button
-                  className={`tab ${activeTab === 'students' ? 'tab-active' : 'tab-inactive'}`}
-                  onClick={() => {
-                    setActiveTab('students');
-                    // Reload student data if switching from a different tab
-                    if (activeTab !== 'students' && user?.token) {
-                      setIsLoading(true);
-                      facultyService.getDashboardData(user.token)
-                        .then(data => {
-                          setStudents(data.students || []);
-                          setIsLoading(false);
-                        })
-                        .catch(err => {
-                          console.error("Error fetching students:", err);
-                          setIsLoading(false);
-                        });
-                    }
-                  }}
-                >
-                  Students
-                </button>
-              </li>
-              <li key="tab-projects" className="mr-2">
-                <button
-                  className={`tab ${activeTab === 'projects' ? 'tab-active' : 'tab-inactive'}`}
-                  onClick={() => {
-                    setActiveTab('projects');
-                    // If we switch to projects and haven't loaded project details yet
-                    if (activeTab !== 'projects' && 
-                        Object.keys(projectDetails).length === 0 && 
-                        projects.length > 0 && 
-                        user?.token) {
-                      setLoadingProjects(true);
-                      fetchProjectDetails();
-                    }
-                  }}
-                >
-                  Projects
-                </button>
-              </li>
-              <li key="tab-meetings" className="mr-2">
-                <button
-                  className={`tab ${activeTab === 'meetings' ? 'tab-active' : 'tab-inactive'}`}
-                  onClick={() => {
-                    setActiveTab('meetings');
-                    // Refresh meetings list when switching to meetings tab
-                    if (activeTab !== 'meetings' && user?.token) {
-                      setIsLoading(true);
-                      facultyService.clearCache();
-                      fetchDashboardData()
-                        .then(() => {
-                          toast.success("Meetings refreshed");
-                        })
-                        .catch(err => {
-                          toast.error("Failed to refresh meetings");
-                        })
-                        .finally(() => {
-                          setIsLoading(false);
-                        });
-                    }
-                  }}
-                >
-                  Meetings
-                </button>
-              </li>
-              <li key="tab-profile" className="mr-2">
-                <button
-                  className={`tab ${activeTab === 'profile' ? 'tab-active' : 'tab-inactive'}`}
-                  onClick={() => {
-                    setActiveTab('profile');
-                  }}
-                >
-                  Profile
-                </button>
-              </li>
-            </ul>
+    <div className="bg-gray-100 min-h-screen">
+      {/* ... existing header ... */}
+      
+      <div className="container mx-auto px-4 py-8">
+        {/* Dashboard Tabs */}
+        <div className="mb-6 bg-white rounded-lg shadow overflow-hidden">
+          <div className="flex overflow-x-auto">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                className={`px-6 py-4 flex items-center whitespace-nowrap ${
+                  activeTab === tab.id ? 'border-b-2 border-indigo-500 text-indigo-600' : 'text-gray-500 hover:text-gray-700'
+                }`}
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  window.location.hash = tab.id;
+                }}
+              >
+                <span className="mr-2">{tab.icon}</span>
+                {tab.label}
+              </button>
+            ))}
           </div>
         </div>
         
-        <div className="card-body">
+        {/* ... existing loading and error handling ... */}
+        
+        <div className="bg-white rounded-lg shadow p-6">
           {isLoading ? (
             <div className="flex justify-center items-center h-64">
               <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
@@ -941,6 +878,12 @@ const Dashboard = () => {
           ) : error ? (
             <div className="bg-red-50 p-4 rounded-md">
               <p className="text-red-800">{error}</p>
+              <button 
+                onClick={fetchDashboardData}
+                className="mt-2 text-sm text-indigo-600 hover:text-indigo-800"
+              >
+                Try again
+              </button>
             </div>
           ) : (
             <>
@@ -1574,6 +1517,11 @@ const Dashboard = () => {
                                 </>
                               )}
         </div>
+              )}
+              
+              {/* Evaluation Tab */}
+              {activeTab === 'evaluations' && (
+                <EvaluationSection />
               )}
               
               {/* Profile Tab */}

@@ -687,6 +687,64 @@ const getProjectDetails = async (projectId, token) => {
   }
 };
 
+// Get evaluations for a specific student
+const getStudentEvaluations = async (studentId, token) => {
+  try {
+    console.log(`Getting evaluations for student ID: ${studentId}`);
+    
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+    
+    // Create auth header
+    const config = {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    };
+    
+    // Make the API call
+    const response = await axios.get(
+      `${API_URL}/faculty/evaluations/${studentId}`, 
+      config
+    );
+    
+    console.log('Retrieved evaluations:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching student evaluations:', error);
+    throw new Error(error.response?.data?.message || 'Failed to fetch student evaluations');
+  }
+};
+
+// Submit an evaluation for a student
+const submitEvaluation = async (studentId, evaluationData, token) => {
+  try {
+    console.log(`Submitting evaluation for student ID: ${studentId}`, evaluationData);
+    
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+    
+    // Create auth header
+    const config = {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      }
+    };
+    
+    // Make the API call
+    const response = await axios.post(
+      `${API_URL}/faculty/evaluations/${studentId}`, 
+      evaluationData,
+      config
+    );
+    
+    console.log('Evaluation submission response:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error submitting evaluation:', error);
+    throw new Error(error.response?.data?.message || 'Failed to submit evaluation');
+  }
+};
+
 const facultyService = {
   getAssignedStudents,
   getMeetings,
@@ -699,7 +757,9 @@ const facultyService = {
   createMeeting,
   getUserId,
   directUpdateMeeting,
-  getProjectDetails
+  getProjectDetails,
+  getStudentEvaluations,
+  submitEvaluation,
 };
 
 export default facultyService; 

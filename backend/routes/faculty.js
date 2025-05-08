@@ -3,6 +3,7 @@ const router = express.Router();
 const { protect, allowRoles } = require('../middleware/auth');
 const User = require('../models/User');
 const Project = require('../models/Project');
+const facultyController = require('../controllers/facultyController');
 
 // GET /api/faculty/students
 // Get all students assigned to the logged-in faculty
@@ -61,5 +62,13 @@ router.get('/students', protect, allowRoles('faculty'), async (req, res) => {
         });
     }
 });
+
+// GET /api/faculty/evaluations/:studentId
+// Get evaluations for a specific student
+router.get('/evaluations/:studentId', protect, allowRoles('faculty'), facultyController.getStudentEvaluations);
+
+// POST /api/faculty/evaluations/:studentId
+// Create/update an evaluation for a student
+router.post('/evaluations/:studentId', protect, allowRoles('faculty'), facultyController.createEvaluation);
 
 module.exports = router; 
