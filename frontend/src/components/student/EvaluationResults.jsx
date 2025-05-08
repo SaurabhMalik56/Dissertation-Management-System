@@ -170,7 +170,7 @@ const EvaluationResults = ({ evaluation: propEvaluation }) => {
                   evaluation.evaluator?.name || 
                   (evaluation.evaluator?.firstName && evaluation.evaluator?.lastName ? 
                     `${evaluation.evaluator.firstName} ${evaluation.evaluator.lastName}` : 
-                    'Unknown')
+                    evaluation.evaluator?.fullName || 'Your Guide')
                 }</p>
               </div>
             </div>
