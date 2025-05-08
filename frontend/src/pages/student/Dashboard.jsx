@@ -55,12 +55,12 @@ const Dashboard = () => {
   // Set active view based on route
   useEffect(() => {
     const path = location.pathname;
-    if (path.includes('proposal')) setActiveView('proposal');
-    else if (path.includes('guide')) setActiveView('guide');
-    else if (path.includes('meetings')) setActiveView('meetings');
-    else if (path.includes('evaluation')) setActiveView('evaluation');
-    else if (path.includes('notifications')) setActiveView('notifications');
-    else if (path.includes('profile')) setActiveView('profile');
+    if (path.includes('/student/proposal')) setActiveView('proposal');
+    else if (path.includes('/student/guide')) setActiveView('guide');
+    else if (path.includes('/student/meetings')) setActiveView('meetings');
+    else if (path.includes('/student/evaluation')) setActiveView('evaluation');
+    else if (path.includes('/student/notifications')) setActiveView('notifications');
+    else if (path.includes('/student/profile')) setActiveView('profile');
     else if (path === '/student') setActiveView('overview');
   }, [location.pathname]);
 
@@ -787,8 +787,8 @@ const Dashboard = () => {
         </div>
       </header>
 
-      {/* Navigation tabs */}
-      <div className="px-4 sm:px-6 lg:px-8 py-2 bg-white border-b border-gray-200">
+      {/* Navigation tabs - only visible on mobile screens */}
+      <div className="md:hidden px-4 sm:px-6 lg:px-8 py-2 bg-white border-b border-gray-200">
         <div className="flex overflow-x-auto space-x-4">
           {navItems.map(item => (
             <button
