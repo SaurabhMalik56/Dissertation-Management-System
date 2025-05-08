@@ -43,9 +43,11 @@ const Dashboard = () => {
       completedProjects: 0,
       upcomingMeetings: 0,
       submissionsThisMonth: 0
-    }
+    },
+    evaluation: null
   });
   const [currentProject, setCurrentProject] = useState(null);
+  const [evaluationLoading, setEvaluationLoading] = useState(false);
 
   const { user } = useSelector((state) => state.auth);
   const location = useLocation();
@@ -109,6 +111,31 @@ const Dashboard = () => {
           toast.info('Your advisor has been updated! Refreshing information...');
         }
         
+        // Fetch evaluation data if activeView is evaluation
+        let evaluationData = null;
+        if (activeView === 'evaluation') {
+          try {
+            console.log('Fetching evaluation data');
+            evaluationData = await studentService.getEvaluationResults(user.token);
+            console.log('Evaluation data fetched:', evaluationData);
+          } catch (evalError) {
+            console.error('Error fetching evaluation data:', evalError);
+            // Don't throw an error - we'll handle it gracefully by setting a placeholder
+            evaluationData = {
+              evaluationType: 'pending',
+              presentationScore: 0,
+              contentScore: 0,
+              researchScore: 0,
+              innovationScore: 0,
+              implementationScore: 0,
+              comments: 'No evaluation available yet.',
+              overallGrade: 'Pending',
+              projectTitle: 'Your Project',
+              createdAt: new Date()
+            };
+          }
+        }
+        
         // Update dashboard data
         setDashboardData({
           projects: data.projects || [],
@@ -120,7 +147,8 @@ const Dashboard = () => {
             completedProjects: data.projects?.filter(p => p.status === 'completed').length || 0,
             upcomingMeetings: meetings.filter(m => new Date(m.scheduledDate || m.dateTime) > new Date()).length || 0,
             submissionsThisMonth: data.submissionsThisMonth || 0
-          }
+          },
+          evaluation: evaluationData || data.evaluation // Include evaluation data
         });
         
         console.log('Dashboard data loaded successfully');
@@ -220,7 +248,8 @@ const Dashboard = () => {
           completedProjects: data.projects?.filter(p => p.status === 'completed').length || 0,
           upcomingMeetings: meetings.filter(m => new Date(m.scheduledDate || m.dateTime) > new Date()).length || 0,
           submissionsThisMonth: data.submissionsThisMonth || 0
-        }
+        },
+        evaluation: data.evaluation || null
       });
       
       toast.success('Dashboard updated');
@@ -252,6 +281,54 @@ const Dashboard = () => {
       toast.error('Could not load project details');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Add a function to fetch evaluation data
+  const fetchEvaluationData = async () => {
+    if (!user || !user.token) return;
+    
+    try {
+      setEvaluationLoading(true);
+      console.log('Fetching evaluation data');
+      const evaluationData = await studentService.getEvaluationResults(user.token);
+      console.log('Evaluation data fetched:', evaluationData);
+      
+      // Update dashboard data with evaluation
+      setDashboardData(prev => ({
+        ...prev,
+        evaluation: evaluationData
+      }));
+      
+      toast.success('Evaluation data refreshed');
+    } catch (error) {
+      console.error('Error fetching evaluation data:', error);
+      
+      // Show user-friendly error message
+      if (error.response && error.response.status === 404) {
+        toast.info('No evaluations available yet. Your faculty will evaluate your work soon.');
+      } else {
+        toast.error('Failed to fetch evaluation data. Try again later.');
+      }
+      
+      // Set a placeholder evaluation so the UI can still render
+      setDashboardData(prev => ({
+        ...prev,
+        evaluation: {
+          evaluationType: 'pending',
+          presentationScore: 0,
+          contentScore: 0,
+          researchScore: 0,
+          innovationScore: 0,
+          implementationScore: 0,
+          comments: 'No evaluation available yet.',
+          overallGrade: 'Pending',
+          projectTitle: 'Your Project',
+          createdAt: new Date()
+        }
+      }));
+    } finally {
+      setEvaluationLoading(false);
     }
   };
 
@@ -300,345 +377,263 @@ const Dashboard = () => {
     { id: 'profile', label: 'Profile', icon: <FaUser className="w-5 h-5" /> }
   ];
 
-  return (
-    <div className="flex-1 bg-gray-50">
-      {/* Top header */}
-      <header className="bg-white shadow-sm z-10">
-        <div className="px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <h1 className="text-lg font-semibold text-gray-900">
-              {navItems.find(item => item.id === activeView)?.label || 'Dashboard'}
-            </h1>
-          </div>
-          <div className="flex items-center space-x-4">
-            <button
-              onClick={refreshDashboard}
-              className="p-1 rounded-full text-gray-600 hover:text-gray-900 focus:outline-none"
-              title="Refresh Data"
-            >
-              <svg className="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* Navigation tabs */}
-      <div className="px-4 sm:px-6 lg:px-8 py-2 bg-white border-b border-gray-200">
-        <div className="flex overflow-x-auto space-x-4">
-          {navItems.map(item => (
-            <button
-              key={item.id}
-              onClick={() => setActiveView(item.id)}
-              className={`flex items-center px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap ${
-                activeView === item.id 
-                  ? 'bg-indigo-100 text-indigo-700' 
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-              } transition-colors duration-150`}
-            >
-              <span className="inline-flex items-center justify-center w-5 h-5 mr-2">
-                {item.icon}
-              </span>
-              <span>{item.label}</span>
-              {item.badge && (
-                <span className="ml-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                  {item.badge}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Main Content Area */}
-      <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-gray-50">
-        {/* Stats Cards */}
-        {activeView === 'overview' && (
-          <>
-            {/* Quick Actions Section */}
-            <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg shadow-md p-6 mb-8">
-              <h3 className="text-white text-lg font-semibold mb-4">Quick Actions</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <button
-                  onClick={() => setActiveView('proposal')}
-                  className="bg-white bg-opacity-20 hover:bg-opacity-30 transition-colors duration-200 rounded-lg p-4 text-white text-center"
-                >
-                  <FaFileAlt className="text-xl mx-auto mb-2" />
-                  <span className="text-sm">Submit Proposal</span>
-          </button>
-          <button
-                  onClick={() => setActiveView('meetings')}
-                  className="bg-white bg-opacity-20 hover:bg-opacity-30 transition-colors duration-200 rounded-lg p-4 text-white text-center"
-                >
-                  <FaCalendarAlt className="text-xl mx-auto mb-2" />
-                  <span className="text-sm">View Meetings</span>
-          </button>
-          <button
-                  onClick={() => setActiveView('guide')}
-                  className="bg-white bg-opacity-20 hover:bg-opacity-30 transition-colors duration-200 rounded-lg p-4 text-white text-center"
-                >
-                  <FaUserTie className="text-xl mx-auto mb-2" />
-                  <span className="text-sm">View Guide</span>
-                    </button>
-                  </div>
-                </div>
-          </>
-        )}
-
-        {/* View Content */}
-        <div className="bg-white rounded-lg shadow-md p-6">
-          {/* Keep the existing tab content but replace activeTab with activeView */}
-          {activeView === 'overview' && (
-            <div>
-              <h2 className="text-xl font-semibold mb-4">Your Dashboard</h2>
-              
-              {/* Current Project - Full Width */}
-              <div className="mb-6">
-                <div className="flex justify-between items-center mb-2">
-                  <h3 className="text-lg font-medium">Current Project</h3>
-                </div>
-                <CurrentProject 
-                  project={dashboardData.projects.length > 0 ? dashboardData.projects[0] : null}
-                  onViewDetails={(view) => setActiveView(view)}
-                />
+  const renderContent = () => {
+    switch (activeView) {
+      case 'overview':
+        return (
+          <div>
+            <h2 className="text-xl font-semibold mb-4">Your Dashboard</h2>
+            
+            {/* Current Project - Full Width */}
+            <div className="mb-6">
+              <div className="flex justify-between items-center mb-2">
+                <h3 className="text-lg font-medium">Current Project</h3>
               </div>
-              
-              {/* Other Dashboard Sections */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2">
-                  {/* Recent Activity */}
-                  <div>
-                    <h3 className="text-lg font-medium mb-3">Recent Activity</h3>
-                    <div className="bg-white border border-gray-200 rounded-lg p-4">
-                      {dashboardData.notifications.length > 0 ? (
-                        <div className="divide-y divide-gray-200">
-                          {dashboardData.notifications.slice(0, 3).map(notification => (
-                            <div key={notification._id} className="py-3 first:pt-0 last:pb-0">
-                              <div className="flex items-start">
-                                <div className={`flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center ${
-                                  !notification.read ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-100 text-gray-600'
-                                }`}>
-                                  {notification.type === 'proposal' && <FaFileAlt className="text-sm" />}
-                                  {notification.type === 'meeting' && <FaCalendarAlt className="text-sm" />}
-                                  {notification.type === 'progress' && <FaChartLine className="text-sm" />}
-                                  {notification.type === 'feedback' && <FaClipboardList className="text-sm" />}
-                                  {notification.type === 'evaluation' && <FaGraduationCap className="text-sm" />}
-                                  {notification.type === 'general' && <FaBell className="text-sm" />}
-                                </div>
-                                <div className="ml-3 flex-1">
-                                  <p className="text-sm font-medium text-gray-900">{notification.title}</p>
-                                  <p className="text-xs text-gray-500 mt-0.5">
-                                    {new Date(notification.createdAt).toLocaleDateString()} at {' '}
-                                    {new Date(notification.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                                  </p>
-                                </div>
-                        </div>
-                      </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-center text-gray-500 py-4">No recent activity</p>
-                      )}
-                      {dashboardData.notifications.length > 3 && (
-                        <div className="mt-4 text-center">
-                          <button
-                            onClick={() => setActiveView('notifications')}
-                            className="text-sm text-indigo-600 hover:text-indigo-800 font-medium"
-                          >
-                            View All Activity
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="lg:col-span-1">
-                  {/* Advisor Information */}
-                  <div className="mb-6 bg-white border border-gray-200 p-4 rounded-lg hover:shadow-md transition-shadow duration-300">
-                    <h3 className="text-lg font-medium mb-3 flex justify-between items-center">
-                      <span>Your Advisor</span>
-                      <button
-                        onClick={refreshDashboard}
-                        className="p-1 rounded-full text-gray-500 hover:text-gray-700 focus:outline-none"
-                        title="Refresh Advisor Info"
-                      >
-                        <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                          </svg>
-                      </button>
-                    </h3>
-                    {dashboardData.guide ? (
-                      (() => {
-                        // Helper function to get the guide's name from various possible property names
-                        const getGuideName = () => {
-                          if (!dashboardData.guide) return "Faculty Guide";
-                          
-                          // Check for various possible property names for the guide's name
-                          const nameProps = ['fullName', 'name', 'facultyName', 'userName', 'displayName'];
-                          for (const prop of nameProps) {
-                            if (dashboardData.guide[prop] && typeof dashboardData.guide[prop] === 'string') {
-                              return dashboardData.guide[prop];
-                            }
-                          }
-                          
-                          // If we have a name property but it might be an object with firstName/lastName
-                          if (dashboardData.guide.firstName && dashboardData.guide.lastName) {
-                            return `${dashboardData.guide.firstName} ${dashboardData.guide.lastName}`;
-                          }
-                          
-                          // Last resort fallback
-                          return "Faculty Guide";
-                        };
-                        
-                        return (
-                          <div className="bg-indigo-50 rounded-lg p-4">
-                            <div className="flex items-center">
-                              <div className="bg-indigo-100 p-3 rounded-full mr-4">
-                                <FaUserTie className="text-indigo-600 text-xl" />
+              <CurrentProject 
+                project={dashboardData.projects.length > 0 ? dashboardData.projects[0] : null}
+                onViewDetails={(view) => setActiveView(view)}
+              />
+            </div>
+            
+            {/* Other Dashboard Sections */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2">
+                {/* Recent Activity */}
+                <div>
+                  <h3 className="text-lg font-medium mb-3">Recent Activity</h3>
+                  <div className="bg-white border border-gray-200 rounded-lg p-4">
+                    {dashboardData.notifications.length > 0 ? (
+                      <div className="divide-y divide-gray-200">
+                        {dashboardData.notifications.slice(0, 3).map(notification => (
+                          <div key={notification._id} className="py-3 first:pt-0 last:pb-0">
+                            <div className="flex items-start">
+                              <div className={`flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center ${
+                                !notification.read ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-100 text-gray-600'
+                              }`}>
+                                {notification.type === 'proposal' && <FaFileAlt className="text-sm" />}
+                                {notification.type === 'meeting' && <FaCalendarAlt className="text-sm" />}
+                                {notification.type === 'progress' && <FaChartLine className="text-sm" />}
+                                {notification.type === 'feedback' && <FaClipboardList className="text-sm" />}
+                                {notification.type === 'evaluation' && <FaGraduationCap className="text-sm" />}
+                                {notification.type === 'general' && <FaBell className="text-sm" />}
                               </div>
-                              <div className="flex-1">
-                                <h4 className="font-semibold text-lg text-indigo-900">
-                                  {getGuideName()}
-                                </h4>
-                        </div>
-                      </div>
-                            
-                            <div className="flex items-start mx-1 mt-3">
-                              <svg className="h-5 w-5 text-indigo-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                              </svg>
-                              <span className="text-indigo-700 font-medium break-all">{dashboardData.guide && dashboardData.guide.email ? dashboardData.guide.email : 'Email not available'}</span>
+                              <div className="ml-3 flex-1">
+                                <p className="text-sm font-medium text-gray-900">{notification.title}</p>
+                                <p className="text-xs text-gray-500 mt-0.5">
+                                  {new Date(notification.createdAt).toLocaleDateString()} at {' '}
+                                  {new Date(notification.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                </p>
+                              </div>
                             </div>
-                            
-                            <div className="mt-4 text-center">
-                        <button
-                                onClick={() => setActiveView('guide')}
-                          className="text-indigo-600 hover:text-indigo-800 text-sm font-medium"
-                        >
-                                View Full Profile
-                        </button>
+                          </div>
+                        ))}
                       </div>
-                    </div>
-                        );
-                      })()
                     ) : (
-                      <div className="text-center py-4">
-                        <FaUserTie className="mx-auto text-gray-400 text-3xl mb-3" />
-                        <p className="text-gray-700">No guide assigned yet.</p>
-                        <p className="text-sm text-gray-500 mt-1">Submit a proposal to get assigned a guide.</p>
+                      <p className="text-center text-gray-500 py-4">No recent activity</p>
+                    )}
+                    {dashboardData.notifications.length > 3 && (
+                      <div className="mt-4 text-center">
+                        <button
+                          onClick={() => setActiveView('notifications')}
+                          className="text-sm text-indigo-600 hover:text-indigo-800 font-medium"
+                        >
+                          View All Activity
+                        </button>
                       </div>
                     )}
                   </div>
-
-                  {/* Upcoming Meetings */}
-                  <div className="bg-white border border-gray-200 p-4 rounded-lg hover:shadow-md transition-shadow duration-300">
-                    <h3 className="text-lg font-medium mb-3">Upcoming Meetings</h3>
-                    {dashboardData.meetings.length > 0 ? (
-                      <div className="space-y-3">
-                        {dashboardData.meetings.slice(0, 2).map(meeting => (
-                          <div key={meeting._id} className="bg-gray-50 rounded-lg p-3">
-                            <div className="flex justify-between items-start">
-                              <div>
-                                <h4 className="font-medium text-sm">
-                                  {meeting.title || `Meeting ${meeting.meetingNumber}`}
-                                </h4>
-                                <p className="text-xs text-gray-500 mt-1">
-                                  With: {meeting.faculty?.name || meeting.guideName || 'Faculty Guide'}
-                                </p>
-                              </div>
-                              <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                                {meeting.status === 'scheduled' ? 'Scheduled' : meeting.status.charAt(0).toUpperCase() + meeting.status.slice(1)}
-                              </span>
+                </div>
+              </div>
+              
+              <div className="lg:col-span-1">
+                {/* Advisor Information */}
+                <div className="mb-6 bg-white border border-gray-200 p-4 rounded-lg hover:shadow-md transition-shadow duration-300">
+                  <h3 className="text-lg font-medium mb-3 flex justify-between items-center">
+                    <span>Your Advisor</span>
+                    <button
+                      onClick={refreshDashboard}
+                      className="p-1 rounded-full text-gray-500 hover:text-gray-700 focus:outline-none"
+                      title="Refresh Advisor Info"
+                    >
+                      <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                    </button>
+                  </h3>
+                  {dashboardData.guide ? (
+                    (() => {
+                      // Helper function to get the guide's name from various possible property names
+                      const getGuideName = () => {
+                        if (!dashboardData.guide) return "Faculty Guide";
+                        
+                        // Check for various possible property names for the guide's name
+                        const nameProps = ['fullName', 'name', 'facultyName', 'userName', 'displayName'];
+                        for (const prop of nameProps) {
+                          if (dashboardData.guide[prop] && typeof dashboardData.guide[prop] === 'string') {
+                            return dashboardData.guide[prop];
+                          }
+                        }
+                        
+                        // If we have a name property but it might be an object with firstName/lastName
+                        if (dashboardData.guide.firstName && dashboardData.guide.lastName) {
+                          return `${dashboardData.guide.firstName} ${dashboardData.guide.lastName}`;
+                        }
+                        
+                        // Last resort fallback
+                        return "Faculty Guide";
+                      };
+                      
+                      return (
+                        <div className="bg-indigo-50 rounded-lg p-4">
+                          <div className="flex items-center">
+                            <div className="bg-indigo-100 p-3 rounded-full mr-4">
+                              <FaUserTie className="text-indigo-600 text-xl" />
                             </div>
-                            <div className="mt-2 space-y-1 text-xs text-gray-500">
-                              <div className="flex items-center">
-                                <FaCalendarAlt className="text-xs mr-1" /> 
-                                <span>{new Date(meeting.dateTime || meeting.scheduledDate).toLocaleDateString()}</span>
-                              </div>
-                              <div className="flex items-center">
-                                <FaClock className="text-xs mr-1" /> 
-                                <span>{new Date(meeting.dateTime || meeting.scheduledDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                              </div>
-                              <div className="flex items-center">
-                                <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                                </svg>
-                                <span>{meeting.location || meeting.meetingType || 'Not specified'}</span>
-                              </div>
-                              {(meeting.notes || meeting.guideNotes) && (
-                                <div className="flex items-start mt-1">
-                                  <FaClipboardList className="text-xs mr-1 mt-0.5" /> 
-                                  <span className="line-clamp-2">Summary: {meeting.notes || meeting.guideNotes}</span>
-                                </div>
-                              )}
-                              {(meeting.studentNotes || meeting.agenda) && (
-                                <div className="flex items-start mt-1">
-                                  <FaClipboardList className="text-xs mr-1 mt-0.5" /> 
-                                  <span className="line-clamp-2">Points to discuss: {meeting.studentNotes || meeting.agenda}</span>
-                                </div>
-                              )}
+                            <div className="flex-1">
+                              <h4 className="font-semibold text-lg text-indigo-900">
+                                {getGuideName()}
+                              </h4>
                             </div>
                           </div>
-                  ))}
-                  {dashboardData.meetings.length > 2 && (
-                          <div className="text-center mt-2">
+                          
+                          <div className="flex items-start mx-1 mt-3">
+                            <svg className="h-5 w-5 text-indigo-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                            </svg>
+                            <span className="text-indigo-700 font-medium break-all">{dashboardData.guide && dashboardData.guide.email ? dashboardData.guide.email : 'Email not available'}</span>
+                          </div>
+                          
+                          <div className="mt-4 text-center">
                       <button
-                              onClick={() => setActiveView('meetings')}
+                              onClick={() => setActiveView('guide')}
                         className="text-indigo-600 hover:text-indigo-800 text-sm font-medium"
                       >
-                        View All Meetings
+                              View Full Profile
                       </button>
+                          </div>
+                        </div>
+                      );
+                    })()
+                  ) : (
+                    <div className="text-center py-4">
+                      <FaUserTie className="mx-auto text-gray-400 text-3xl mb-3" />
+                      <p className="text-gray-700">No guide assigned yet.</p>
+                      <p className="text-sm text-gray-500 mt-1">Submit a proposal to get assigned a guide.</p>
                     </div>
                   )}
                 </div>
-              ) : (
-                      <div className="text-center py-4">
-                        <FaCalendarAlt className="mx-auto text-gray-400 text-2xl mb-3" />
-                        <p className="text-gray-700">No upcoming meetings</p>
-                        <p className="mt-2 text-sm text-gray-500">
-                          Your advisor will schedule meetings when needed
-                        </p>
+
+                {/* Upcoming Meetings */}
+                <div className="bg-white border border-gray-200 p-4 rounded-lg hover:shadow-md transition-shadow duration-300">
+                  <h3 className="text-lg font-medium mb-3">Upcoming Meetings</h3>
+                  {dashboardData.meetings.length > 0 ? (
+                    <div className="space-y-3">
+                      {dashboardData.meetings.slice(0, 2).map(meeting => (
+                        <div key={meeting._id} className="bg-gray-50 rounded-lg p-3">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <h4 className="font-medium text-sm">
+                                {meeting.title || `Meeting ${meeting.meetingNumber}`}
+                              </h4>
+                              <p className="text-xs text-gray-500 mt-1">
+                                With: {meeting.faculty?.name || meeting.guideName || 'Faculty Guide'}
+                              </p>
+                            </div>
+                            <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                              {meeting.status === 'scheduled' ? 'Scheduled' : meeting.status.charAt(0).toUpperCase() + meeting.status.slice(1)}
+                            </span>
+                          </div>
+                          <div className="mt-2 space-y-1 text-xs text-gray-500">
+                            <div className="flex items-center">
+                              <FaCalendarAlt className="text-xs mr-1" /> 
+                              <span>{new Date(meeting.dateTime || meeting.scheduledDate).toLocaleDateString()}</span>
+                            </div>
+                            <div className="flex items-center">
+                              <FaClock className="text-xs mr-1" /> 
+                              <span>{new Date(meeting.dateTime || meeting.scheduledDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                            </div>
+                            <div className="flex items-center">
+                              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                              </svg>
+                              <span>{meeting.location || meeting.meetingType || 'Not specified'}</span>
+                            </div>
+                            {(meeting.notes || meeting.guideNotes) && (
+                              <div className="flex items-start mt-1">
+                                <FaClipboardList className="text-xs mr-1 mt-0.5" /> 
+                                <span className="line-clamp-2">Summary: {meeting.notes || meeting.guideNotes}</span>
+                              </div>
+                            )}
+                            {(meeting.studentNotes || meeting.agenda) && (
+                              <div className="flex items-start mt-1">
+                                <FaClipboardList className="text-xs mr-1 mt-0.5" /> 
+                                <span className="line-clamp-2">Points to discuss: {meeting.studentNotes || meeting.agenda}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-4">
+                      <FaCalendarAlt className="mx-auto text-gray-400 text-2xl mb-3" />
+                      <p className="text-gray-700">No upcoming meetings</p>
+                      <p className="mt-2 text-sm text-gray-500">
+                        Your advisor will schedule meetings when needed
+                      </p>
+                    </div>
+                  )}
                 </div>
-              )}
-                  </div>
-                </div>
+              </div>
             </div>
           </div>
-        )}
-
-          {activeView === 'proposal' && (
+        );
+      case 'proposal':
+        return (
           <div>
             <h2 className="text-xl font-semibold mb-6">Submit Dissertation Proposal</h2>
             <ProposalForm onSubmitSuccess={refreshDashboard} />
           </div>
-        )}
-
-          {activeView === 'guide' && (
+        );
+      case 'guide':
+        return (
           <div>
             <h2 className="text-xl font-semibold mb-6">Your Faculty Guide</h2>
             <GuideInfo />
           </div>
-        )}
-
-          {activeView === 'meetings' && (
+        );
+      case 'meetings':
+        return (
           <div>
               <h2 className="text-xl font-semibold mb-2">Faculty-Student Meetings</h2>
               <p className="text-gray-500 mb-6">Meetings are scheduled by your faculty guide. You can view meeting details here but cannot create or edit meetings.</p>
             <MeetingsList />
           </div>
-        )}
-
-          {activeView === 'evaluation' && (
-          <div>
-            <h2 className="text-xl font-semibold mb-6">Evaluation Results</h2>
-            <EvaluationResults />
+        );
+      case 'evaluation':
+        return (
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h2 className="text-xl font-bold text-gray-800">Dissertation Evaluation</h2>
+              <button 
+                onClick={fetchEvaluationData}
+                disabled={evaluationLoading}
+                className="flex items-center space-x-1 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 px-3 py-1 rounded transition-colors"
+              >
+                {evaluationLoading ? (
+                  <div className="animate-spin h-4 w-4 border-2 border-indigo-500 rounded-full border-t-transparent"></div>
+                ) : (
+                  <FaSync className="h-4 w-4" />
+                )}
+                <span>Refresh</span>
+              </button>
+            </div>
+            <EvaluationResults evaluation={dashboardData.evaluation} />
           </div>
-        )}
-
-          {activeView === 'notifications' && (
+        );
+      case 'notifications':
+        return (
           <div>
             <h2 className="text-xl font-semibold mb-6">Notifications</h2>
             
@@ -748,15 +743,78 @@ const Dashboard = () => {
               </div>
             </div>
           </div>
-        )}
-
-          {activeView === 'profile' && (
+        );
+      case 'profile':
+        return (
           <div>
             <h2 className="text-xl font-semibold mb-6">Your Profile</h2>
             <ProfileSection />
           </div>
-        )}
+        );
+      default:
+        return (
+          <div>
+            <h2 className="text-xl font-semibold mb-4">Dashboard</h2>
+            <p>Select an option from the sidebar to view content.</p>
+          </div>
+        );
+    }
+  };
+
+  return (
+    <div className="flex-1 bg-gray-50">
+      {/* Top header */}
+      <header className="bg-white shadow-sm z-10">
+        <div className="px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <h1 className="text-lg font-semibold text-gray-900">
+              {navItems.find(item => item.id === activeView)?.label || 'Dashboard'}
+            </h1>
+          </div>
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={refreshDashboard}
+              className="p-1 rounded-full text-gray-600 hover:text-gray-900 focus:outline-none"
+              title="Refresh Data"
+            >
+              <svg className="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Navigation tabs */}
+      <div className="px-4 sm:px-6 lg:px-8 py-2 bg-white border-b border-gray-200">
+        <div className="flex overflow-x-auto space-x-4">
+          {navItems.map(item => (
+            <button
+              key={item.id}
+              onClick={() => setActiveView(item.id)}
+              className={`flex items-center px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap ${
+                activeView === item.id 
+                  ? 'bg-indigo-100 text-indigo-700' 
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              } transition-colors duration-150`}
+            >
+              <span className="inline-flex items-center justify-center w-5 h-5 mr-2">
+                {item.icon}
+              </span>
+              <span>{item.label}</span>
+              {item.badge && (
+                <span className="ml-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                  {item.badge}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
       </div>
+
+      {/* Main Content Area */}
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-gray-50">
+        {renderContent()}
       </main>
     </div>
   );

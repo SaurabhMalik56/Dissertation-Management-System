@@ -3,7 +3,7 @@ import { useSelector } from 'react-redux';
 import { FaTrophy, FaClipboardCheck, FaChartBar, FaSearch, FaExclamationCircle } from 'react-icons/fa';
 import studentService from '../../services/studentService';
 
-const EvaluationResults = () => {
+const EvaluationResults = ({ evaluation: propEvaluation }) => {
   const { user } = useSelector((state) => state.auth);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -11,6 +11,14 @@ const EvaluationResults = () => {
   const [selectedCriterion, setSelectedCriterion] = useState(null);
 
   useEffect(() => {
+    // If evaluation was passed as prop, use it
+    if (propEvaluation) {
+      setEvaluation(propEvaluation);
+      setLoading(false);
+      return;
+    }
+
+    // Otherwise fetch from the API
     const fetchEvaluationResults = async () => {
       try {
         setLoading(true);
@@ -28,25 +36,10 @@ const EvaluationResults = () => {
     if (user?.token) {
       fetchEvaluationResults();
     }
-  }, [user]);
+  }, [user, propEvaluation]);
 
   const handleCriterionClick = (criterion) => {
     setSelectedCriterion(selectedCriterion === criterion ? null : criterion);
-  };
-
-  // Calculate total score and percentage
-  const calculateTotalScore = () => {
-    if (!evaluation || !evaluation.criteria) return { score: 0, percentage: 0 };
-    
-    const totalScore = evaluation.criteria.reduce((sum, criterion) => sum + criterion.score, 0);
-    const maxPossibleScore = evaluation.criteria.reduce((sum, criterion) => sum + criterion.maxScore, 0);
-    const percentage = maxPossibleScore > 0 ? (totalScore / maxPossibleScore) * 100 : 0;
-    
-    return {
-      score: totalScore,
-      maxScore: maxPossibleScore,
-      percentage: Math.round(percentage * 10) / 10
-    };
   };
 
   // Get grade based on percentage
@@ -95,13 +88,62 @@ const EvaluationResults = () => {
     );
   }
 
+  // Create criteria array from the evaluation schema fields
+  const evaluationCriteria = [
+    { 
+      name: 'Presentation', 
+      score: evaluation.presentationScore || 0, 
+      maxScore: 100,
+      description: 'Quality of presentation, clarity, and organization of the dissertation'
+    },
+    { 
+      name: 'Content', 
+      score: evaluation.contentScore || 0, 
+      maxScore: 100,
+      description: 'Quality and depth of the content in the dissertation'
+    },
+    { 
+      name: 'Research', 
+      score: evaluation.researchScore || 0, 
+      maxScore: 100,
+      description: 'Quality of research methodology and literature review'
+    },
+    { 
+      name: 'Innovation', 
+      score: evaluation.innovationScore || 0, 
+      maxScore: 100,
+      description: 'Level of innovation and original contribution'
+    },
+    { 
+      name: 'Implementation', 
+      score: evaluation.implementationScore || 0, 
+      maxScore: 100,
+      description: 'Quality of implementation and practical application'
+    }
+  ];
+
+  // Calculate total score and percentage
+  const calculateTotalScore = () => {
+    const totalScore = evaluationCriteria.reduce((sum, criterion) => sum + criterion.score, 0);
+    const maxPossibleScore = evaluationCriteria.reduce((sum, criterion) => sum + criterion.maxScore, 0);
+    const percentage = maxPossibleScore > 0 ? (totalScore / maxPossibleScore) * 100 : 0;
+    
+    return {
+      score: totalScore,
+      maxScore: maxPossibleScore,
+      percentage: Math.round(percentage * 10) / 10
+    };
+  };
+
   const totalScoreData = calculateTotalScore();
-  const grade = getGrade(totalScoreData.percentage);
+  const grade = evaluation.overallGrade || getGrade(totalScoreData.percentage);
 
   return (
     <div className="bg-white rounded-lg shadow overflow-hidden">
       <div className="bg-gradient-to-r from-indigo-500 to-purple-600 px-6 py-4">
-        <h3 className="text-lg font-medium text-white">Dissertation Evaluation Results</h3>
+        <h3 className="text-lg font-medium text-white">
+          Dissertation Evaluation Results - {evaluation.evaluationType === 'mid-term' ? 'Mid-Term' : 'Final'}
+        </h3>
       </div>
 
       <div className="p-6">
@@ -112,19 +154,24 @@ const EvaluationResults = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-gray-500">Project Title</p>
-                <p className="font-medium">{evaluation.projectTitle}</p>
+                <p className="font-medium">{evaluation.projectTitle || 'Unknown Project'}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">Submission Date</p>
-                <p className="font-medium">{new Date(evaluation.submissionDate).toLocaleDateString()}</p>
+                <p className="text-sm text-gray-500">Evaluation Type</p>
+                <p className="font-medium">{evaluation.evaluationType === 'mid-term' ? 'Mid-Term Evaluation' : 'Final Evaluation'}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-500">Evaluation Date</p>
-                <p className="font-medium">{new Date(evaluation.evaluationDate).toLocaleDateString()}</p>
+                <p className="font-medium">{new Date(evaluation.createdAt || evaluation.evaluationDate).toLocaleDateString()}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-500">Evaluator</p>
-                <p className="font-medium">{evaluation.evaluator?.name || 'Unknown'}</p>
+                <p className="font-medium">{
+                  evaluation.evaluator?.name || 
+                  (evaluation.evaluator?.firstName && evaluation.evaluator?.lastName ? 
+                    `${evaluation.evaluator.firstName} ${evaluation.evaluator.lastName}` : 
+                    'Unknown')
+                }</p>
               </div>
             </div>
           </div>
@@ -135,7 +182,7 @@ const EvaluationResults = () => {
           <div className="bg-indigo-50 rounded-lg p-6 flex flex-col md:flex-row items-center justify-between">
             <div className="text-center mb-4 md:mb-0">
               <FaTrophy className="mx-auto text-indigo-600 text-3xl mb-2" />
-              <h4 className="text-lg font-bold text-gray-900">Final Score</h4>
+              <h4 className="text-lg font-bold text-gray-900">Overall Score</h4>
               <div className="text-3xl font-bold text-indigo-600 mt-1">
                 {totalScoreData.score}/{totalScoreData.maxScore}
               </div>
@@ -149,28 +196,40 @@ const EvaluationResults = () => {
             <div className="text-center mb-4 md:mb-0">
               <div className="flex items-center justify-center">
                 <div className="h-16 w-16 rounded-full bg-indigo-100 flex items-center justify-center">
-                  <span className="text-2xl font-bold text-indigo-600">{grade.letter}</span>
+                  <span className="text-2xl font-bold text-indigo-600">{
+                    typeof grade === 'string' ? grade : grade.letter
+                  }</span>
                 </div>
               </div>
               <h4 className="text-lg font-bold text-gray-900 mt-2">Grade</h4>
-              <p className="text-sm text-gray-500 mt-1">{grade.description}</p>
+              <p className="text-sm text-gray-500 mt-1">{
+                typeof grade === 'string' ? '' : grade.description
+              }</p>
             </div>
             
             <div className="h-20 w-px bg-indigo-200 hidden md:block"></div>
             
             <div className="text-center">
               <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                evaluation.status === 'passed' ? 'bg-green-100 text-green-800' : 
-                evaluation.status === 'failed' ? 'bg-red-100 text-red-800' : 
-                'bg-yellow-100 text-yellow-800'
+                evaluation.overallGrade === 'A' || evaluation.overallGrade === 'B' || totalScoreData.percentage >= 70 
+                  ? 'bg-green-100 text-green-800' 
+                  : totalScoreData.percentage >= 60
+                  ? 'bg-yellow-100 text-yellow-800'
+                  : 'bg-red-100 text-red-800'
               }`}>
-                {evaluation.status.charAt(0).toUpperCase() + evaluation.status.slice(1)}
+                {evaluation.overallGrade === 'A' || evaluation.overallGrade === 'B' || totalScoreData.percentage >= 70 
+                  ? 'Passed' 
+                  : totalScoreData.percentage >= 60
+                  ? 'Review Required'
+                  : 'Needs Improvement'}
               </div>
               <h4 className="text-lg font-bold text-gray-900 mt-2">Status</h4>
               <p className="text-sm text-gray-500 mt-1">
-                {evaluation.status === 'passed' ? 'Congratulations!' : 
-                 evaluation.status === 'failed' ? 'Needs improvement' : 
-                 'Pending final decision'}
+                {evaluation.overallGrade === 'A' || evaluation.overallGrade === 'B' || totalScoreData.percentage >= 70 
+                  ? 'Congratulations!' 
+                  : totalScoreData.percentage >= 60
+                  ? 'Under final review'
+                  : 'Revision recommended'}
               </p>
             </div>
           </div>
@@ -181,9 +240,9 @@ const EvaluationResults = () => {
           <h4 className="font-medium text-gray-900 mb-4">Evaluation Criteria</h4>
           
           <div className="space-y-4">
-            {evaluation.criteria.map((criterion) => (
+            {evaluationCriteria.map((criterion) => (
               <div 
-                key={criterion._id || criterion.name}
+                key={criterion.name}
                 className="border border-gray-200 rounded-lg overflow-hidden"
               >
                 <div 
@@ -203,7 +262,7 @@ const EvaluationResults = () => {
                     </div>
                     <div>
                       <h5 className="font-medium text-gray-900">{criterion.name}</h5>
-                      <p className="text-xs text-gray-500">Weight: {criterion.weight}%</p>
+                      <p className="text-xs text-gray-500">Score: {criterion.score}/100</p>
                     </div>
                   </div>
                   <div className="text-right">
@@ -219,24 +278,6 @@ const EvaluationResults = () => {
                 {selectedCriterion === criterion && (
                   <div className="px-4 py-3 border-t border-gray-200 bg-gray-50">
                     <p className="text-sm text-gray-700 mb-3">{criterion.description}</p>
-                    {criterion.feedback && (
-                      <div className="mb-3">
-                        <h6 className="text-xs font-medium text-gray-500 mb-1">Evaluator Feedback:</h6>
-                        <p className="text-sm text-gray-700 bg-white p-2 rounded border border-gray-200">
-                          {criterion.feedback}
-                        </p>
-                      </div>
-                    )}
-                    {criterion.areas && criterion.areas.length > 0 && (
-                      <div>
-                        <h6 className="text-xs font-medium text-gray-500 mb-1">Areas for Improvement:</h6>
-                        <ul className="list-disc list-inside text-sm text-gray-700">
-                          {criterion.areas.map((area, index) => (
-                            <li key={index}>{area}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
@@ -244,52 +285,15 @@ const EvaluationResults = () => {
           </div>
         </div>
         
-        {/* Overall Feedback */}
-        {evaluation.overallFeedback && (
+        {/* Comments */}
+        {evaluation.comments && (
           <div className="mb-6">
-            <h4 className="font-medium text-gray-900 mb-3">Overall Feedback</h4>
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <p className="text-gray-700">{evaluation.overallFeedback}</p>
+            <h4 className="font-medium text-gray-900 mb-3">Evaluator Comments</h4>
+            <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+              <p className="text-gray-700 whitespace-pre-wrap">{evaluation.comments}</p>
             </div>
           </div>
         )}
-        
-        {/* Recommendations */}
-        {evaluation.recommendations && evaluation.recommendations.length > 0 && (
-          <div className="mb-6">
-            <h4 className="font-medium text-gray-900 mb-3">Recommendations</h4>
-            <div className="bg-yellow-50 border border-yellow-100 p-4 rounded-lg">
-              <ul className="space-y-2">
-                {evaluation.recommendations.map((recommendation, index) => (
-                  <li key={index} className="flex items-start">
-                    <FaExclamationCircle className="text-yellow-500 mt-1 mr-2 flex-shrink-0" />
-                    <span className="text-gray-700">{recommendation}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        )}
-        
-        {/* Next Steps */}
-        <div className="mt-8 p-4 bg-indigo-50 rounded-lg">
-          <h4 className="font-medium text-indigo-900 mb-2">Next Steps</h4>
-          {evaluation.status === 'passed' ? (
-            <p className="text-gray-700">
-              Congratulations on passing your dissertation evaluation! You should receive your official certificate soon. 
-              Please check with your department for the graduation ceremony details.
-            </p>
-          ) : evaluation.status === 'failed' ? (
-            <p className="text-gray-700">
-              Based on the evaluation, your dissertation needs some improvements. Please review the feedback 
-              carefully and consult with your guide about the revision process and resubmission timeline.
-            </p>
-          ) : (
-            <p className="text-gray-700">
-              Your evaluation is still being processed. Please check back later for final results.
-            </p>
-          )}
-        </div>
       </div>
     </div>
   );
