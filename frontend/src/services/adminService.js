@@ -502,7 +502,7 @@ const getMeetingDetails = async (token, studentId) => {
         const allMeetingsResponse = await axios.get(`${API_URL}/meetings`, config);
         let allMeetings = Array.isArray(allMeetingsResponse.data) ? allMeetingsResponse.data : [];
         
-        // Filter meetings where studentId matches (comparing as strings to avoid ObjectId issues)
+        // Filter meetings where studentId matches EXACTLY (comparing as strings to avoid ObjectId issues)
         meetings = allMeetings.filter(meeting => {
           // Extract the ID, handling different possible formats
           const meetingStudentId = 
@@ -512,6 +512,7 @@ const getMeetingDetails = async (token, studentId) => {
             meeting.student;
           
           // Compare as strings to avoid ObjectId vs String comparison issues
+          // Using explicit string comparison and ensuring we're matching the exact ID, not a substring
           return meetingStudentId && meetingStudentId.toString() === studentId.toString();
         });
         

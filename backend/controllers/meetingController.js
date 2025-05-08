@@ -115,12 +115,18 @@ exports.createMeeting = async (req, res) => {
 // @access  Private
 exports.getMeetings = async (req, res) => {
     try {
-        const { projectId } = req.query;
+        const { projectId, studentId } = req.query;
         let query = {};
 
         // Filter by project if provided
         if (projectId) {
             query.projectId = projectId;
+        }
+
+        // Filter by studentId if provided (exact match)
+        if (studentId) {
+            query.studentId = studentId;
+            console.log(`Filtering meetings for exact student ID: ${studentId}`);
         }
 
         // Role-based filtering
@@ -139,9 +145,10 @@ exports.getMeetings = async (req, res) => {
             .populate('facultyId', 'fullName email department')
             .sort({ scheduledDate: 1 });
 
+        console.log(`Found ${meetings.length} meetings matching query:`, query);
         res.json(meetings);
     } catch (error) {
-        console.error(error);
+        console.error('Error fetching meetings:', error);
         res.status(500).json({ message: 'Server error', error: error.message });
     }
 };
