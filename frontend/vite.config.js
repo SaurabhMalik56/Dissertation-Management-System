@@ -1,9 +1,8 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import path from 'path'
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import path from 'path';
 
-// https://vitejs.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
   root: './',
   build: {
@@ -16,18 +15,19 @@ export default defineConfig({
   },
   server: {
     host: true,
-    port: 5173, // Explicitly set port
-    open: true, // Open browser on start
-    proxy: {
-      '/api': {
-        target: 'http://localhost:5000',
-        changeOrigin: true,
-        secure: false,
+    port: 5173,
+    open: true,
+    ...(mode === 'development' && {
+      proxy: {
+        '/api': {
+          target: 'http://localhost:5000',
+          changeOrigin: true,
+          secure: false,
+        }
       }
-    }
+    })
   },
-  // Add clear error overlay
   esbuild: {
     logOverride: { 'this-is-undefined-in-esm': 'silent' }
   }
-})
+}));
